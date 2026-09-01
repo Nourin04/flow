@@ -9,6 +9,7 @@ import {
   Edit2, 
   Trash2, 
   X,
+  ChevronDown,
   Pizza,
   Car,
   Home,
@@ -134,7 +135,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-900 font-display">Expenses</h2>
-          <p className="text-xs text-slate-400 font-medium">
+          <p className="text-xs text-slate-500 font-medium mt-0.5">
             {user.currency}{totalSpent.toLocaleString('en-IN')} spent in {
               availableMonths.find(m => m.value === selectedMonth)?.label.split(' ')[0]
             }
@@ -147,7 +148,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-white border border-slate-100 rounded-xl px-4 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 focus:outline-hidden appearance-none pr-8 cursor-pointer"
+              className="bg-white border border-slate-200/90 rounded-xl px-4 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-500/20 appearance-none pr-8 cursor-pointer"
             >
               {availableMonths.map((m) => (
                 <option key={m.value} value={m.value}>
@@ -155,7 +156,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
                 </option>
               ))}
             </select>
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-[10px]">▾</span>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
           <button
@@ -203,7 +204,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-[10px]">▾</span>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
         {/* Reset Buttons */}

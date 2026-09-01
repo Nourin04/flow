@@ -16,6 +16,7 @@ import {
   Gift,
   Sparkles,
   HelpCircle,
+  ChevronDown,
   X
 } from 'lucide-react';
 
@@ -204,7 +205,7 @@ export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMont
       {/* Header */}
       <div>
         <h2 className="text-xl font-bold text-slate-900 font-display">Settings</h2>
-        <p className="text-xs text-slate-400 font-medium">Configure profile attributes, historical incomes, categories, and account states.</p>
+        <p className="text-xs text-slate-500 font-medium mt-0.5">Configure profile attributes, historical incomes, categories, and account states.</p>
       </div>
 
       {message && (
@@ -254,16 +255,19 @@ export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMont
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-500">Currency Symbol</label>
-                <select
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-hidden focus:border-violet-500 focus:bg-white"
-                >
-                  <option value="₹">Rupee (₹)</option>
-                  <option value="$">Dollar ($)</option>
-                  <option value="€">Euro (€)</option>
-                  <option value="£">Pound (£)</option>
-                </select>
+                <div className="relative">
+                  <select
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200/70 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 focus:bg-white transition-all appearance-none pr-8 cursor-pointer"
+                  >
+                    <option value="₹">Rupee (₹)</option>
+                    <option value="$">Dollar ($)</option>
+                    <option value="€">Euro (€)</option>
+                    <option value="£">Pound (£)</option>
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
               </div>
 
               <button
@@ -433,15 +437,18 @@ export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMont
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Icon & Color</label>
                 <div className="flex gap-1.5">
-                  <select
-                    value={newCatIcon}
-                    onChange={(e) => setNewCatIcon(e.target.value)}
-                    className="flex-1 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-hidden"
-                  >
-                    {availableIcons.map(icon => (
-                      <option key={icon} value={icon}>{icon}</option>
-                    ))}
-                  </select>
+                  <div className="relative flex-1">
+                    <select
+                      value={newCatIcon}
+                      onChange={(e) => setNewCatIcon(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200/80 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 appearance-none pr-7 cursor-pointer"
+                    >
+                      {availableIcons.map(icon => (
+                        <option key={icon} value={icon}>{icon}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                   <input
                     type="color"
                     value={newCatColor}

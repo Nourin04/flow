@@ -191,7 +191,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
       {/* Header */}
       <div>
         <h2 className="text-xl font-bold text-slate-900 font-display">Analytics</h2>
-        <p className="text-xs text-slate-400 font-medium">Deeper insights into spending, trends, and financial health indicators.</p>
+        <p className="text-xs text-slate-500 font-medium mt-0.5">Deeper insights into spending, trends, and financial health indicators.</p>
       </div>
 
       {/* Financial Health Status Indicator (PRD Section 17 & 29) */}

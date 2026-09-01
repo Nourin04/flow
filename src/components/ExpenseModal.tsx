@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import type { Category, Transaction } from '../lib/types';
-import { X } from 'lucide-react';
+import { X, ChevronDown } from 'lucide-react';
 
 interface ExpenseModalProps {
   isOpen: boolean;
@@ -169,19 +169,22 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
           {/* Category Dropdown */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-slate-500">Category</label>
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200/70 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 focus:bg-white transition-all appearance-none cursor-pointer"
-              required
-            >
-              <option value="" disabled>Select a category</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200/70 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 focus:bg-white transition-all appearance-none cursor-pointer pr-9"
+                required
+              >
+                <option value="" disabled>Select a category</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
           </div>
 
           {/* Date Picker */}

@@ -59,7 +59,7 @@ export const Goals: React.FC = () => {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-slate-900 font-display">Savings Goals</h2>
-            <p className="text-xs text-slate-400 font-medium">Keep track of your milestones and build strong savings habits.</p>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">Keep track of your milestones and build strong savings habits.</p>
           </div>
           
           <button

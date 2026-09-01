@@ -329,15 +329,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
           </div>
         </div>
 
-        {/* Metric: Total Saved / Remaining Money */}
+        {/* Metric: Total Saved */}
         <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-500 flex items-center justify-center flex-shrink-0">
             <Sparkles className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Remaining Money</p>
-            <h3 className="text-xl font-extrabold text-emerald-600 font-display mt-0.5">{formatVal(totalSaved)}</h3>
-            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-md mt-1">
+            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Total Saved</p>
+            <h3 className="text-xl font-extrabold text-slate-800 font-display mt-0.5">{formatVal(totalSaved)}</h3>
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md mt-1">
               {savingsRate.toFixed(1)}% of income <ArrowUpRight className="w-2.5 h-2.5" />
             </span>
           </div>
