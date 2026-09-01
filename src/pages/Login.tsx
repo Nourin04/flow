@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { FlowLogo } from '../components/FlowLogo';
 import { Mail, Lock, User, ArrowRight, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
@@ -51,21 +50,6 @@ export const Login: React.FC = () => {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    if (isSupabaseConfigured && supabase) {
-      try {
-        await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: { redirectTo: window.location.origin }
-        });
-      } catch (err: any) {
-        setError(err.message || 'Google authentication failed.');
-      }
-    } else {
-      login('noureen@example.com', 'password');
-    }
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 md:p-10 font-sans">
       <div className="bg-white rounded-3xl border border-slate-100 shadow-xl overflow-hidden w-full max-w-5xl grid grid-cols-1 md:grid-cols-12 min-h-[600px]">
@@ -105,30 +89,30 @@ export const Login: React.FC = () => {
               <div className="grid grid-cols-3 gap-2 mb-3">
                 <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100/80">
                   <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Income</p>
-                  <p className="text-xs font-extrabold text-slate-800 font-display mt-0.5">₹50,000</p>
+                  <p className="text-xs font-extrabold text-slate-800 font-display mt-0.5">₹8,000</p>
                   <span className="text-[7px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.2 rounded mt-1 inline-block">+100%</span>
                 </div>
                 <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100/80">
                   <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Spent</p>
-                  <p className="text-xs font-extrabold text-slate-800 font-display mt-0.5">₹18,420</p>
-                  <span className="text-[7px] font-bold text-rose-500 bg-rose-50 px-1 py-0.2 rounded mt-1 inline-block">36.8%</span>
+                  <p className="text-xs font-extrabold text-slate-800 font-display mt-0.5">₹2,420</p>
+                  <span className="text-[7px] font-bold text-rose-500 bg-rose-50 px-1 py-0.2 rounded mt-1 inline-block">30.3%</span>
                 </div>
                 <div className="bg-violet-600 text-white p-2.5 rounded-xl shadow-xs shadow-violet-200">
                   <p className="text-[8px] font-bold text-violet-200 uppercase tracking-wider">Saved</p>
-                  <p className="text-xs font-extrabold font-display mt-0.5">₹31,580</p>
-                  <span className="text-[7px] font-bold text-emerald-300 bg-white/10 px-1 py-0.2 rounded mt-1 inline-block">63.2% rate</span>
+                  <p className="text-xs font-extrabold font-display mt-0.5">₹5,580</p>
+                  <span className="text-[7px] font-bold text-emerald-300 bg-white/10 px-1 py-0.2 rounded mt-1 inline-block">69.8% rate</span>
                 </div>
               </div>
 
-              {/* Mini Flow Progress Bar */}
+              {/* Mini Money Flow Progress Bar */}
               <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 mb-3 space-y-1.5">
                 <div className="flex justify-between items-center text-[9px] font-semibold">
-                  <span className="text-slate-500">Monthly Budget Flow</span>
-                  <span className="text-emerald-600 font-bold">₹31,580 Surplus</span>
+                  <span className="text-slate-500">Money Flow</span>
+                  <span className="text-emerald-600 font-bold">₹5,580 Surplus</span>
                 </div>
                 <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden flex">
-                  <div className="h-full bg-violet-600 rounded-l-full" style={{ width: '36.8%' }}></div>
-                  <div className="h-full bg-emerald-500 rounded-r-full" style={{ width: '63.2%' }}></div>
+                  <div className="h-full bg-violet-600 rounded-l-full" style={{ width: '30.3%' }}></div>
+                  <div className="h-full bg-emerald-500 rounded-r-full" style={{ width: '69.7%' }}></div>
                 </div>
               </div>
 
@@ -153,15 +137,17 @@ export const Login: React.FC = () => {
 
               {/* Overlay Floating Badge */}
               <div className="absolute -bottom-2 -right-2 bg-white border border-slate-100 px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-lg group-hover:scale-105 transition-all">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></div>
-                <span className="text-[10px] font-extrabold text-slate-800 font-display">Live Financial Health: 94/100</span>
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                <span className="text-[10px] font-extrabold text-slate-800 font-display flex items-center gap-1">
+                  <span>🟢</span> You're on track
+                </span>
               </div>
             </div>
           </div>
 
           {/* Footer branding */}
           <div className="text-[10px] text-slate-400 font-medium">
-            © {new Date().getFullYear()} Flow Inc. All rights reserved.
+            © {new Date().getFullYear()} Flow · Your money, clearly.
           </div>
         </div>
 
@@ -179,41 +165,6 @@ export const Login: React.FC = () => {
                   ? 'Sign up to start tracking your stipend or salary.' 
                   : 'Log in to continue to your account'}
               </p>
-            </div>
-
-            {/* Google OAuth Button */}
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              className="w-full border border-slate-200/80 rounded-xl px-4 py-2.5 text-xs text-slate-600 hover:bg-slate-50 font-semibold flex items-center justify-center gap-2.5 active:scale-98 transition-all"
-            >
-              {/* Google G Logo */}
-              <svg className="w-4.5 h-4.5" viewBox="0 0 24 24">
-                <path
-                  fill="#EA4335"
-                  d="M5.266 9.765A7.077 7.077 0 0 1 12 4.909c1.69 0 3.218.6 4.418 1.582l3.51-3.51C17.642 1.09 14.97 0 12 0 7.354 0 3.307 2.69 1.266 6.643l4 3.122Z"
-                />
-                <path
-                  fill="#4285F4"
-                  d="M23.455 12.273c0-.818-.073-1.609-.209-2.373H12v4.582h6.418a5.525 5.525 0 0 1-2.4 3.627l3.782 2.927c2.209-2.036 3.655-5.036 3.655-8.764Z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.266 14.235A7.106 7.106 0 0 1 4.909 12c0-.79.136-1.545.357-2.235l-4-3.122A11.916 11.916 0 0 0 0 12c0 1.927.455 3.755 1.266 5.357l4-3.122Z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 24c3.24 0 5.955-1.073 7.936-2.91l-3.782-2.927c-1.05.709-2.39 1.136-4.154 1.136-3.21 0-5.918-2.164-6.89-5.073l-4.009 3.109C3.307 21.31 7.354 24 12 24Z"
-                />
-              </svg>
-              Continue with Google
-            </button>
-
-            {/* Divider */}
-            <div className="flex items-center gap-3 select-none">
-              <span className="h-px bg-slate-100 flex-1"></span>
-              <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">or</span>
-              <span className="h-px bg-slate-100 flex-1"></span>
             </div>
 
             {/* Error or Success notification banner */}
