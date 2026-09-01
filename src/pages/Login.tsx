@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { Mail, Lock, User, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 export const Login: React.FC = () => {
   const { login, signup } = useAuth();
@@ -199,12 +199,7 @@ export const Login: React.FC = () => {
               <span className="h-px bg-slate-100 flex-1"></span>
             </div>
 
-            {/* Error or Success notification */}
-            {error && (
-              <div className="text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 rounded-xl p-3">
-                {error}
-              </div>
-            )}
+            {/* Success notification */}
             {successMessage && (
               <div className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-xl p-3">
                 {successMessage}
@@ -222,7 +217,7 @@ export const Login: React.FC = () => {
                       id="name"
                       type="text"
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      onChange={(e) => { setName(e.target.value); if (error) setError(''); }}
                       placeholder="Noureen"
                       className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-violet-500 focus:bg-white transition-all font-medium"
                       required
@@ -234,14 +229,18 @@ export const Login: React.FC = () => {
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-500" htmlFor="email">Email address</label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Mail className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${error ? 'text-rose-400' : 'text-slate-400'}`} />
                   <input
                     id="email"
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => { setEmail(e.target.value); if (error) setError(''); }}
                     placeholder="you@example.com"
-                    className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-violet-500 focus:bg-white transition-all font-medium"
+                    className={`w-full pl-9 pr-4 py-2.5 rounded-xl text-xs font-medium transition-all focus:outline-hidden ${
+                      error 
+                        ? 'bg-rose-50/40 border border-rose-300 text-slate-900 focus:border-rose-500 focus:bg-white' 
+                        : 'bg-slate-50 border border-slate-200/80 text-slate-800 placeholder-slate-400 focus:border-violet-500 focus:bg-white'
+                    }`}
                     required
                   />
                 </div>
@@ -257,14 +256,18 @@ export const Login: React.FC = () => {
                   )}
                 </div>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Lock className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${error ? 'text-rose-400' : 'text-slate-400'}`} />
                   <input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => { setPassword(e.target.value); if (error) setError(''); }}
                     placeholder="Enter your password"
-                    className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-violet-500 focus:bg-white transition-all font-medium"
+                    className={`w-full pl-9 pr-10 py-2.5 rounded-xl text-xs font-medium transition-all focus:outline-hidden ${
+                      error 
+                        ? 'bg-rose-50/40 border border-rose-300 text-slate-900 focus:border-rose-500 focus:bg-white' 
+                        : 'bg-slate-50 border border-slate-200/80 text-slate-800 placeholder-slate-400 focus:border-violet-500 focus:bg-white'
+                    }`}
                     required
                   />
                   <button
@@ -280,6 +283,13 @@ export const Login: React.FC = () => {
                     )}
                   </button>
                 </div>
+                {/* Inline Error Message */}
+                {error && (
+                  <p className="text-[11px] font-semibold text-rose-500 flex items-center gap-1.5 mt-1.5 animate-in fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-500" />
+                    <span>{error}</span>
+                  </p>
+                )}
               </div>
 
               {/* Remember me (only for Login) */}
