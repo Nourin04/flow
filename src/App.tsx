@@ -13,8 +13,13 @@ const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
   const [currentPage, setCurrentPage] = useState<string>('overview');
   
-  // Track globally selected month (e.g. August 2026 default to match screenshot)
-  const [selectedMonth, setSelectedMonth] = useState<string>('2026-08');
+  // Track globally selected month (defaults dynamically to current calendar month, e.g. 2026-09)
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  });
 
   if (isLoading) {
     return (

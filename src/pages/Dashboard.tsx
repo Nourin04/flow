@@ -48,7 +48,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
     const allIncomes = db.getAllIncome(user.id);
     const allTxs = await db.getTransactions(user.id);
     
-    const monthSet = new Set(['2026-08', '2026-09', '2026-10', selectedMonth, ...allIncomes.map(i => i.month), ...allTxs.map(t => t.transaction_date.substring(0, 7))]);
+    const currentMonthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    const monthSet = new Set([currentMonthKey, selectedMonth, '2026-08', '2026-09', ...allIncomes.map(i => i.month), ...allTxs.map(t => t.transaction_date.substring(0, 7))]);
     setUserMonths(Array.from(monthSet).sort());
 
     // Fetch categories
