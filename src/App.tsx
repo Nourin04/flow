@@ -57,7 +57,7 @@ const AppContent: React.FC = () => {
           />
         );
       case 'budget':
-        return <Budget selectedMonth={selectedMonth} />;
+        return <Budget selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} />;
       case 'analytics':
         return <Analytics selectedMonth={selectedMonth} />;
       case 'goals':
