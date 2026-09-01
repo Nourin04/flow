@@ -103,7 +103,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (error.message.toLowerCase().includes('email not confirmed')) {
             return { 
               success: false, 
-              message: 'Email not confirmed yet. Please confirm your email address or disable "Confirm Email" in Supabase Dashboard -> Authentication -> Providers -> Email.' 
+              message: 'Email not confirmed yet. Please confirm your email address or disable "Confirm Email" in Supabase Dashboard.' 
+            };
+          }
+          if (error.message.toLowerCase().includes('invalid login credentials') || error.message.toLowerCase().includes('invalid credentials')) {
+            return {
+              success: false,
+              message: 'Invalid email or password. Please check your credentials.'
             };
           }
           return { success: false, message: error.message };

@@ -199,9 +199,15 @@ export const Login: React.FC = () => {
               <span className="h-px bg-slate-100 flex-1"></span>
             </div>
 
-            {/* Success notification */}
+            {/* Error or Success notification banner */}
+            {error && (
+              <div className="text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 rounded-xl p-3 flex items-center gap-2 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
             {successMessage && (
-              <div className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+              <div className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-xl p-3 animate-in fade-in">
                 {successMessage}
               </div>
             )}
