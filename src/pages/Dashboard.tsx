@@ -12,6 +12,8 @@ import {
   Sparkles,
   Calendar,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Pizza,
   Car,
   Home,
@@ -40,19 +42,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
   const [budget, setBudget] = useState<Budget | null>(null);
   const [categoryBudgets, setCategoryBudgets] = useState<CategoryBudget[]>([]);
   const [showGoalToast, setShowGoalToast] = useState(true);
-  const [userMonths, setUserMonths] = useState<string[]>(['2026-08', '2026-09', '2026-10']);
   const [hoveredCategory, setHoveredCategory] = useState<{ name: string; value: number; color: string } | null>(null);
+  
+  // Calendar Month Popover State
+  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+  const [pickerYear, setPickerYear] = useState<number>(() => {
+    const [y] = selectedMonth.split('-');
+    return parseInt(y) || new Date().getFullYear();
+  });
 
   const loadData = async () => {
     if (!user) return;
-    
-    // Fetch all user incomes & transactions to collect all recorded months
-    const allIncomes = db.getAllIncome(user.id);
-    const allTxs = await db.getTransactions(user.id);
-    
-    const currentMonthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-    const monthSet = new Set([currentMonthKey, selectedMonth, '2026-08', '2026-09', ...allIncomes.map(i => i.month), ...allTxs.map(t => t.transaction_date.substring(0, 7))]);
-    setUserMonths(Array.from(monthSet).sort());
 
     // Fetch categories
     const cats = await db.getCategories(user.id);
@@ -154,10 +154,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
     }
   };
 
-  const availableMonths = userMonths.map(m => ({
-    value: m,
-    label: formatMonthLabel(m)
-  }));
+  const currentCalendarMonth = (() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  })();
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-300">
@@ -168,33 +168,110 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
           <h2 className="text-xl font-bold text-slate-900 font-display flex items-center gap-1.5">
             Good evening, {user.name} 👋
           </h2>
-          <p className="text-xs text-slate-900 font-bold mt-0.5">Here's how your money is looking this month.</p>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">Here's how your money is looking this month.</p>
         </div>
 
-        {/* Month Selector & CTA */}
+        {/* Interactive Calendar Month Picker & CTA */}
         <div className="flex items-center gap-3">
-          <div className="relative group">
+          <div className="relative">
             {/* Custom Theme Calendar Month Selector Button */}
-            <div className="flex items-center gap-2.5 bg-white border border-slate-200/90 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-800 shadow-xs group-hover:border-violet-300 group-hover:bg-slate-50/80 transition-all cursor-pointer select-none">
+            <button
+              type="button"
+              onClick={() => {
+                const [y] = selectedMonth.split('-');
+                if (y) setPickerYear(parseInt(y));
+                setShowCalendarPicker(prev => !prev);
+              }}
+              className="flex items-center gap-2.5 bg-white border border-slate-200/90 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-800 shadow-xs hover:border-violet-300 hover:bg-slate-50/80 active:scale-98 transition-all cursor-pointer select-none"
+            >
               <div className="w-6 h-6 rounded-lg bg-violet-100/70 text-violet-600 flex items-center justify-center shrink-0">
                 <Calendar className="w-3.5 h-3.5" />
               </div>
               <span className="font-display font-bold text-slate-900">{formatMonthLabel(selectedMonth)}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-0.5 group-hover:text-slate-600 transition-colors" />
-            </div>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 ml-0.5 transition-transform duration-200 ${showCalendarPicker ? 'rotate-180 text-violet-600' : ''}`} />
+            </button>
 
-            {/* Accessible Native Select Overlay */}
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-            >
-              {availableMonths.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
+            {/* Interactive Calendar Month Popover */}
+            {showCalendarPicker && (
+              <>
+                {/* Backdrop to close popover */}
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setShowCalendarPicker(false)} 
+                />
+                
+                <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150 select-none">
+                  {/* Year navigation */}
+                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setPickerYear(prev => prev - 1)}
+                      className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="font-display font-extrabold text-xs text-slate-800 tracking-tight">
+                      {pickerYear} Calendar
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPickerYear(prev => prev + 1)}
+                      className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* 12 Months Grid */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const mStr = String(i + 1).padStart(2, '0');
+                      const mKey = `${pickerYear}-${mStr}`;
+                      const isSelected = selectedMonth === mKey;
+                      const isCurrent = mKey === currentCalendarMonth;
+                      const monthName = new Date(pickerYear, i, 1).toLocaleDateString('en-US', { month: 'short' });
+
+                      return (
+                        <button
+                          key={mKey}
+                          type="button"
+                          onClick={() => {
+                            setSelectedMonth(mKey);
+                            setShowCalendarPicker(false);
+                          }}
+                          className={`py-2 px-1 rounded-xl text-xs font-semibold flex flex-col items-center justify-center transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-violet-600 text-white font-bold shadow-md shadow-violet-200 scale-105'
+                              : isCurrent
+                              ? 'bg-violet-50 text-violet-700 border border-violet-200 font-bold'
+                              : 'text-slate-700 hover:bg-slate-100/80 hover:text-slate-900'
+                          }`}
+                        >
+                          <span>{monthName}</span>
+                          {isCurrent && <span className={`text-[8px] mt-0.5 ${isSelected ? 'opacity-90 text-violet-100' : 'text-violet-500 font-bold'}`}>• Today</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Date Input Shortcut */}
+                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-400 font-medium">Or pick date:</span>
+                    <input
+                      type="month"
+                      value={selectedMonth}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setSelectedMonth(e.target.value);
+                          setShowCalendarPicker(false);
+                        }
+                      }}
+                      className="px-2 py-1 bg-slate-50 border border-slate-200/80 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/20 cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           <button
@@ -236,7 +313,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
           </div>
         </div>
 
-        {/* Metric: Budget Left */}
+        {/* Metric: Budget Left / Remaining Budget */}
         <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center flex-shrink-0">
             <Wallet className="w-5 h-5" />
@@ -252,15 +329,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
           </div>
         </div>
 
-        {/* Metric: Total Saved */}
+        {/* Metric: Total Saved / Remaining Money */}
         <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-500 flex items-center justify-center flex-shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
             <Sparkles className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Total Saved</p>
-            <h3 className="text-xl font-extrabold text-slate-800 font-display mt-0.5">{formatVal(totalSaved)}</h3>
-            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md mt-1">
+            <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Remaining Money</p>
+            <h3 className="text-xl font-extrabold text-emerald-600 font-display mt-0.5">{formatVal(totalSaved)}</h3>
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-md mt-1">
               {savingsRate.toFixed(1)}% of income <ArrowUpRight className="w-2.5 h-2.5" />
             </span>
           </div>
@@ -296,7 +373,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
                   style={{ width: `${incomeAmount > 0 ? (totalSpent / incomeAmount) * 100 : 0}%` }}
                 ></div>
                 <div 
-                  className="h-full bg-violet-500" 
+                  className="h-full bg-emerald-500" 
                   style={{ width: `${incomeAmount > 0 ? (totalSaved / incomeAmount) * 100 : 0}%` }}
                 ></div>
               </div>
@@ -307,9 +384,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
                   <p className="text-[9px] text-rose-500 font-bold uppercase">Spent</p>
                   <p className="text-xs font-bold text-slate-800 font-display mt-0.5">{formatVal(totalSpent)}</p>
                 </div>
-                <div className="bg-violet-50/50 border border-violet-100/30 px-3 py-2.5 rounded-xl">
-                  <p className="text-[9px] text-violet-500 font-bold uppercase">Remaining</p>
-                  <p className="text-xs font-bold text-slate-800 font-display mt-0.5">{formatVal(totalSaved)}</p>
+                <div className="bg-emerald-50/80 border border-emerald-100 px-3 py-2.5 rounded-xl">
+                  <p className="text-[9px] text-emerald-600 font-bold uppercase tracking-wider">Remaining</p>
+                  <p className="text-xs font-extrabold text-emerald-700 font-display mt-0.5">{formatVal(totalSaved)}</p>
                 </div>
               </div>
             </div>

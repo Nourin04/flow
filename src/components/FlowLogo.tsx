@@ -24,7 +24,7 @@ export const FlowLogo: React.FC<FlowLogoProps> = ({
 }) => {
   const iconSize = size === 'sm' ? 'w-7 h-7' : size === 'lg' ? 'w-11 h-11' : 'w-9 h-9';
   const titleSize = size === 'sm' ? 'text-lg' : size === 'lg' ? 'text-3xl' : 'text-2xl';
-  const subtitleSize = size === 'sm' ? 'text-[9px]' : size === 'lg' ? 'text-xs' : 'text-[11px]';
+  const subtitleSize = size === 'sm' ? 'text-[11px]' : size === 'lg' ? 'text-sm' : 'text-xs';
 
   const textColor = variant === 'light' ? 'text-white' : 'text-[#0F172A]';
   const subColor = variant === 'light' ? 'text-slate-300' : 'text-slate-500';
