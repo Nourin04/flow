@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { FlowLogo } from '../components/FlowLogo';
 import { Mail, Lock, User, ArrowRight, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 export const Login: React.FC = () => {
@@ -72,15 +73,7 @@ export const Login: React.FC = () => {
         {/* Left Side: Brand & Visuals */}
         <div className="hidden md:flex md:col-span-6 bg-slate-50/50 p-12 flex-col justify-between border-r border-slate-100 select-none">
           {/* Logo */}
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg gradient-accent flex items-center justify-center text-white shadow-md shadow-violet-200">
-              <svg className="w-4.5 h-4.5 fill-current" viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
-              </svg>
-            </div>
-            <span className="font-display font-bold text-lg tracking-tight text-slate-800">Flow</span>
-            <span className="text-[10px] text-slate-400 font-medium">Your money, clearly.</span>
-          </div>
+          <FlowLogo size="md" showSubtitle={true} />
 
           {/* Heading */}
           <div className="my-auto py-8">
@@ -92,52 +85,76 @@ export const Login: React.FC = () => {
               Track income, manage expenses, set budgets and build better financial habits.
             </p>
 
-            {/* Mock Dashboard Illustration */}
-            <div className="relative mt-12 bg-white border border-slate-100 rounded-2xl p-5 shadow-lg shadow-slate-100/60 max-w-sm">
-              <div className="flex justify-between items-center mb-4">
-                <div className="flex gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-400"></span>
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-                </div>
-                <span className="text-[9px] font-semibold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md">Flow Preview</span>
-              </div>
-              <div className="space-y-3">
-                <div className="h-2 w-2/3 bg-slate-100 rounded-full"></div>
-                <div className="h-2 w-1/2 bg-slate-100 rounded-full"></div>
-                {/* SVG Mock Line Chart */}
-                <svg className="w-full h-24 text-violet-500 overflow-visible mt-2" viewBox="0 0 100 30" fill="none">
-                  <path
-                    d="M0 25 C10 20, 20 28, 30 18 C40 8, 50 15, 60 5 C70 -5, 80 12, 100 8"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M0 25 C10 20, 20 28, 30 18 C40 8, 50 15, 60 5 C70 -5, 80 12, 100 8 L100 30 L0 30 Z"
-                    fill="url(#gradient)"
-                    opacity="0.08"
-                  />
-                  <defs>
-                    <linearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="currentColor" />
-                      <stop offset="100%" stopColor="transparent" />
-                    </linearGradient>
-                  </defs>
-                  <circle cx="60" cy="5" r="2.5" className="fill-violet-600 animate-ping" />
-                  <circle cx="60" cy="5" r="2" className="fill-violet-600" />
-                </svg>
-              </div>
+            {/* Realistic Miniature Flow Dashboard Preview */}
+            <div className="relative mt-8 bg-white border border-slate-100/80 rounded-2xl p-4 shadow-xl shadow-slate-200/50 max-w-md select-none overflow-hidden group hover:border-violet-200 transition-all duration-300">
               
-              {/* Overlay coin badge */}
-              <div className="absolute -bottom-4 -right-4 bg-white border border-slate-100 px-3 py-2 rounded-xl flex items-center gap-2 shadow-md">
-                <div className="w-7 h-7 rounded-full bg-violet-600 flex items-center justify-center text-white text-xs font-semibold">
-                  ₹
+              {/* Mini Dashboard Header */}
+              <div className="flex justify-between items-center pb-3 mb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-rose-400"></div>
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-400"></div>
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-400"></div>
+                  <span className="text-[10px] font-bold text-slate-800 font-display ml-1">Flow Dashboard</span>
                 </div>
-                <div className="text-[10px]">
-                  <p className="text-slate-400 font-semibold -mb-0.5">Saved</p>
-                  <p className="text-slate-800 font-extrabold font-display">64.3%</p>
+                <span className="text-[9px] font-bold text-violet-600 bg-violet-50 border border-violet-100 px-2 py-0.5 rounded-md">
+                  September 2026 ▾
+                </span>
+              </div>
+
+              {/* Mini Stat Cards Grid */}
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100/80">
+                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Income</p>
+                  <p className="text-xs font-extrabold text-slate-800 font-display mt-0.5">₹50,000</p>
+                  <span className="text-[7px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.2 rounded mt-1 inline-block">+100%</span>
                 </div>
+                <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100/80">
+                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Spent</p>
+                  <p className="text-xs font-extrabold text-slate-800 font-display mt-0.5">₹18,420</p>
+                  <span className="text-[7px] font-bold text-rose-500 bg-rose-50 px-1 py-0.2 rounded mt-1 inline-block">36.8%</span>
+                </div>
+                <div className="bg-violet-600 text-white p-2.5 rounded-xl shadow-xs shadow-violet-200">
+                  <p className="text-[8px] font-bold text-violet-200 uppercase tracking-wider">Saved</p>
+                  <p className="text-xs font-extrabold font-display mt-0.5">₹31,580</p>
+                  <span className="text-[7px] font-bold text-emerald-300 bg-white/10 px-1 py-0.2 rounded mt-1 inline-block">63.2% rate</span>
+                </div>
+              </div>
+
+              {/* Mini Flow Progress Bar */}
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 mb-3 space-y-1.5">
+                <div className="flex justify-between items-center text-[9px] font-semibold">
+                  <span className="text-slate-500">Monthly Budget Flow</span>
+                  <span className="text-emerald-600 font-bold">₹31,580 Surplus</span>
+                </div>
+                <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden flex">
+                  <div className="h-full bg-violet-600 rounded-l-full" style={{ width: '36.8%' }}></div>
+                  <div className="h-full bg-emerald-500 rounded-r-full" style={{ width: '63.2%' }}></div>
+                </div>
+              </div>
+
+              {/* Mini Recent Transactions */}
+              <div className="space-y-1.5">
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Recent Activity</p>
+                <div className="flex justify-between items-center text-[10px] bg-slate-50/50 p-1.5 rounded-lg border border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-md bg-rose-100 text-rose-600 flex items-center justify-center text-[10px]">🍕</span>
+                    <span className="font-semibold text-slate-700">Food & Dining</span>
+                  </div>
+                  <span className="font-extrabold text-slate-800">-₹120</span>
+                </div>
+                <div className="flex justify-between items-center text-[10px] bg-slate-50/50 p-1.5 rounded-lg border border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-md bg-blue-100 text-blue-600 flex items-center justify-center text-[10px]">🚗</span>
+                    <span className="font-semibold text-slate-700">Transportation</span>
+                  </div>
+                  <span className="font-extrabold text-slate-800">-₹180</span>
+                </div>
+              </div>
+
+              {/* Overlay Floating Badge */}
+              <div className="absolute -bottom-2 -right-2 bg-white border border-slate-100 px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-lg group-hover:scale-105 transition-all">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></div>
+                <span className="text-[10px] font-extrabold text-slate-800 font-display">Live Financial Health: 94/100</span>
               </div>
             </div>
           </div>
