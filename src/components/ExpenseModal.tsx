@@ -146,7 +146,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-xl font-display font-medium text-slate-800 text-lg focus:outline-hidden focus:border-violet-500 focus:bg-white transition-all"
+                className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200/70 rounded-xl font-display font-medium text-slate-800 text-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 focus:bg-white transition-all"
                 required
                 autoFocus
               />
@@ -161,7 +161,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="e.g. Lunch with team, Uber ride"
-              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-violet-500 focus:bg-white transition-all"
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/70 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 focus:bg-white transition-all"
               required
             />
           </div>
@@ -172,7 +172,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
             <select
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200/80 rounded-xl text-sm text-slate-800 focus:outline-hidden focus:border-violet-500 focus:bg-white transition-all appearance-none"
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200/70 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 focus:bg-white transition-all appearance-none cursor-pointer"
               required
             >
               <option value="" disabled>Select a category</option>
@@ -191,7 +191,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
               type="date"
               value={transactionDate}
               onChange={(e) => setTransactionDate(e.target.value)}
-              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-xl text-sm text-slate-800 focus:outline-hidden focus:border-violet-500 focus:bg-white transition-all"
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200/70 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 focus:bg-white transition-all cursor-pointer"
               required
             />
           </div>

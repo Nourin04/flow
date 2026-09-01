@@ -266,8 +266,21 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
                 <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                 <Tooltip 
-                  formatter={(value: any) => [`${user.currency}${value.toLocaleString('en-IN')}`, 'Cumulative Spend']}
-                  contentStyle={{ background: '#fff', border: '1px solid #f1f5f9', borderRadius: '12px', fontSize: '11px' }}
+                  wrapperStyle={{ zIndex: 50, outline: 'none' }}
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <div className="bg-slate-900/95 text-white text-[11px] font-semibold px-3 py-1.5 rounded-xl shadow-xl border border-slate-800 pointer-events-none select-none">
+                          <p className="text-slate-400 text-[9px] uppercase font-bold mb-0.5">Day {label}</p>
+                          <p className="flex items-center gap-1.5">
+                            <span className="text-slate-300">Cumulative Spend:</span>
+                            <span className="font-bold text-violet-300">{user.currency}{(payload[0]?.value ?? 0).toLocaleString('en-IN')}</span>
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
                 />
                 <Line 
                   type="monotone" 

@@ -10,7 +10,8 @@ import {
   TrendingUp, 
   Receipt,
   Sparkles,
-
+  Calendar,
+  ChevronDown,
   Pizza,
   Car,
   Home,
@@ -40,6 +41,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
   const [categoryBudgets, setCategoryBudgets] = useState<CategoryBudget[]>([]);
   const [showGoalToast, setShowGoalToast] = useState(true);
   const [userMonths, setUserMonths] = useState<string[]>(['2026-08', '2026-09', '2026-10']);
+  const [hoveredCategory, setHoveredCategory] = useState<{ name: string; value: number; color: string } | null>(null);
 
   const loadData = async () => {
     if (!user) return;
@@ -166,16 +168,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
           <h2 className="text-xl font-bold text-slate-900 font-display flex items-center gap-1.5">
             Good evening, {user.name} 👋
           </h2>
-          <p className="text-xs text-slate-400 font-medium">Here's how your money is looking this month.</p>
+          <p className="text-xs text-slate-900 font-bold mt-0.5">Here's how your money is looking this month.</p>
         </div>
 
         {/* Month Selector & CTA */}
         <div className="flex items-center gap-3">
-          <div className="relative">
+          <div className="relative group">
+            {/* Custom Theme Calendar Month Selector Button */}
+            <div className="flex items-center gap-2.5 bg-white border border-slate-200/90 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-800 shadow-xs group-hover:border-violet-300 group-hover:bg-slate-50/80 transition-all cursor-pointer select-none">
+              <div className="w-6 h-6 rounded-lg bg-violet-100/70 text-violet-600 flex items-center justify-center shrink-0">
+                <Calendar className="w-3.5 h-3.5" />
+              </div>
+              <span className="font-display font-bold text-slate-900">{formatMonthLabel(selectedMonth)}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-0.5 group-hover:text-slate-600 transition-colors" />
+            </div>
+
+            {/* Accessible Native Select Overlay */}
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-white border border-slate-100 rounded-xl px-4 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 focus:outline-hidden appearance-none pr-8 cursor-pointer"
+              className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
             >
               {availableMonths.map((m) => (
                 <option key={m.value} value={m.value}>
@@ -183,7 +195,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
                 </option>
               ))}
             </select>
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-[10px]">▾</span>
           </div>
 
           <button
@@ -336,7 +347,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
           </div>
 
           {/* Donut Chart visual */}
-          <div className="flex items-center justify-center h-40 relative my-2">
+          <div className="flex items-center justify-center h-44 relative my-2">
             {categorySpending.length > 0 ? (
               <>
                 <ResponsiveContainer width="100%" height="100%">
@@ -349,21 +360,37 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
                       outerRadius={68}
                       paddingAngle={3}
                       dataKey="value"
+                      onMouseEnter={(_data, index) => {
+                        const item = categorySpending[index];
+                        if (item) setHoveredCategory({ name: item.name, value: item.value, color: item.color });
+                      }}
+                      onMouseLeave={() => setHoveredCategory(null)}
                     >
                       {categorySpending.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                        <Cell key={`cell-${index}`} fill={entry.color} className="cursor-pointer transition-all hover:opacity-85" />
                       ))}
                     </Pie>
-                    <Tooltip 
-                      formatter={(value: any) => [`${user.currency}${value.toLocaleString('en-IN')}`, 'Amount']}
-                      contentStyle={{ background: '#fff', border: '1px solid #f1f5f9', borderRadius: '12px', fontSize: '11px' }}
-                    />
+                    <Tooltip content={() => null} />
                   </PieChart>
                 </ResponsiveContainer>
-                {/* Donut Center Label */}
-                <div className="absolute text-center">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total</p>
-                  <p className="text-sm font-extrabold text-slate-800 font-display mt-0.5">{formatVal(totalSpent)}</p>
+
+                {/* Donut Center Label - Dynamic on Hover */}
+                <div className="absolute text-center pointer-events-none select-none px-3 transition-all">
+                  {hoveredCategory ? (
+                    <div className="animate-in fade-in duration-150">
+                      <p className="text-[10px] font-bold uppercase tracking-wider truncate max-w-[100px]" style={{ color: hoveredCategory.color }}>
+                        {hoveredCategory.name}
+                      </p>
+                      <p className="text-sm font-extrabold text-slate-900 font-display mt-0.5">
+                        {formatVal(hoveredCategory.value)}
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total</p>
+                      <p className="text-sm font-extrabold text-slate-800 font-display mt-0.5">{formatVal(totalSpent)}</p>
+                    </div>
+                  )}
                 </div>
               </>
             ) : (
@@ -374,17 +401,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
           </div>
 
           {/* Simple category legend list */}
-          <div className="flex flex-col gap-1.5 max-h-24 overflow-y-auto pr-1">
+          <div className="flex flex-col gap-1 overflow-y-auto pr-1">
             {categorySpending.slice(0, 5).map((cat) => {
               const pct = totalSpent > 0 ? Math.round((cat.value / totalSpent) * 100) : 0;
+              const isHovered = hoveredCategory?.name === cat.name;
               return (
-                <div key={cat.id} className="flex justify-between items-center text-xs">
+                <div 
+                  key={cat.id} 
+                  onMouseEnter={() => setHoveredCategory({ name: cat.name, value: cat.value, color: cat.color })}
+                  onMouseLeave={() => setHoveredCategory(null)}
+                  className={`flex justify-between items-center text-xs p-1.5 rounded-lg transition-colors cursor-pointer ${isHovered ? 'bg-slate-100/80 font-bold' : 'hover:bg-slate-50'}`}
+                >
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }}></span>
-                    <span className="text-slate-500 font-medium">{cat.name}</span>
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }}></span>
+                    <span className="text-slate-600 font-medium">{cat.name}</span>
                   </div>
                   <div className="flex items-center gap-3 font-display">
-                    <span className="text-slate-700 font-bold">{formatVal(cat.value)}</span>
+                    <span className="text-slate-800 font-bold">{formatVal(cat.value)}</span>
                     <span className="text-slate-400 font-semibold text-[10px] w-6 text-right">{pct}%</span>
                   </div>
                 </div>
