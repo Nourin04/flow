@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import type { Category, MonthlyIncome } from '../lib/types';
-import { 
-  User, 
-  DollarSign, 
-  Tag, 
-  Check, 
+import {
+  User,
+  DollarSign,
+  Tag,
+  Check,
   Plus,
   Pizza,
   Car,
@@ -26,7 +26,7 @@ interface SettingsProps {
 
 export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMonth, setSelectedMonth }) => {
   const { user, updateUser, logout } = useAuth();
-  
+
   // Profile settings state
   const [profileName, setProfileName] = useState('');
   const [profileEmail, setProfileEmail] = useState('');
@@ -200,7 +200,7 @@ export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMont
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-300">
-      
+
       {/* Header */}
       <div>
         <h2 className="text-xl font-bold text-slate-900 font-display">Settings</h2>
@@ -219,16 +219,16 @@ export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMont
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        
+
         {/* Left column: Profile form & Income configuration */}
         <div className="lg:col-span-6 flex flex-col gap-4">
-          
+
           {/* Profile Details */}
           <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
             <h3 className="font-display font-semibold text-slate-800 text-sm mb-4 flex items-center gap-2">
               <User className="w-4 h-4 text-violet-500" /> Profile Settings
             </h3>
-            
+
             <form onSubmit={handleUpdateProfile} className="space-y-4">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-500">Name</label>
@@ -332,7 +332,7 @@ export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMont
                 </div>
               </form>
             )}
-            
+
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
                 <thead>
@@ -409,7 +409,7 @@ export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMont
 
         {/* Right column: Categories Manager & Account settings */}
         <div className="lg:col-span-6 flex flex-col gap-4">
-          
+
           {/* Categories Manager */}
           <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
             <h3 className="font-display font-semibold text-slate-800 text-sm mb-4 flex items-center gap-2">
@@ -466,8 +466,8 @@ export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMont
                 return (
                   <div key={cat.id} className="flex justify-between items-center py-1 border-b border-slate-50 last:border-0">
                     <div className="flex items-center gap-2.5">
-                      <div 
-                        className="w-7.5 h-7.5 rounded-lg flex items-center justify-center border text-[10px]" 
+                      <div
+                        className="w-7.5 h-7.5 rounded-lg flex items-center justify-center border text-[10px]"
                         style={{ backgroundColor: `${cat.color}10`, borderColor: `${cat.color}20` }}
                       >
                         <IconComponent className="w-4 h-4" style={{ color: cat.color }} />
@@ -485,11 +485,10 @@ export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMont
                     {/* Active Toggle */}
                     <button
                       onClick={() => handleToggleCategory(cat.id, cat.is_active)}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md cursor-pointer select-none border transition-colors ${
-                        cat.is_active 
-                          ? 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100/50' 
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md cursor-pointer select-none border transition-colors ${cat.is_active
+                          ? 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100/50'
                           : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'
-                      }`}
+                        }`}
                     >
                       {cat.is_active ? 'Active' : 'Inactive'}
                     </button>
@@ -502,8 +501,8 @@ export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMont
           {/* Account operations */}
           <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs space-y-4">
             <h3 className="font-display font-semibold text-rose-600 text-sm">Account Operations</h3>
-            <p className="text-[10px] text-slate-400 font-semibold uppercase -mt-2">Danger zone account adjustments</p>
-            
+            <p className="text-[10px] text-slate-400 font-semibold uppercase -mt-2">Danger zone </p>
+
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <button
                 onClick={logout}

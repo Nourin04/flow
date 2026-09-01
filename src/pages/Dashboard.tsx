@@ -340,7 +340,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
             <h4 className="font-display font-semibold text-slate-800 text-sm">Spending Breakdown</h4>
             <button 
               onClick={() => setCurrentPage('expenses')}
-              className="text-[10px] text-slate-400 font-bold hover:text-slate-600 transition-colors uppercase tracking-wider"
+              className="text-[10px] text-blue-600 hover:text-blue-700 font-bold hover:underline transition-colors uppercase tracking-wider cursor-pointer"
             >
               View all
             </button>
@@ -432,7 +432,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
             <h4 className="font-display font-semibold text-slate-800 text-sm">Recent Activity</h4>
             <button 
               onClick={() => setCurrentPage('expenses')}
-              className="text-[10px] text-slate-400 font-bold hover:text-slate-600 transition-colors uppercase tracking-wider"
+              className="text-[10px] text-blue-600 hover:text-blue-700 font-bold hover:underline transition-colors uppercase tracking-wider cursor-pointer"
             >
               View all
             </button>
@@ -510,7 +510,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
             <h4 className="font-display font-semibold text-slate-800 text-sm">Budget Progress</h4>
             <button 
               onClick={() => setCurrentPage('budget')}
-              className="text-[10px] text-slate-400 font-bold hover:text-slate-600 transition-colors uppercase tracking-wider"
+              className="text-[10px] text-blue-600 hover:text-blue-700 font-bold hover:underline transition-colors uppercase tracking-wider cursor-pointer"
             >
               View budget
             </button>
