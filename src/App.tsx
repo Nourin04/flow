@@ -58,7 +58,7 @@ const AppContent: React.FC = () => {
       case 'goals':
         return <Goals />;
       case 'settings':
-        return <Settings selectedMonth={selectedMonth} />;
+        return <Settings selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} />;
       default:
         return (
           <Dashboard 

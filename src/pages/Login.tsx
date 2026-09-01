@@ -1,23 +1,26 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Lock, User, ArrowRight } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { Mail, Lock, User, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 export const Login: React.FC = () => {
   const { login, signup } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   
-  // Prefill default credentials for easy review
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('noureen@example.com');
-  const [password, setPassword] = useState('password');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccessMessage('');
     setLoading(true);
 
     try {
@@ -27,14 +30,16 @@ export const Login: React.FC = () => {
           setLoading(false);
           return;
         }
-        const success = await signup(name.trim(), email.trim(), password);
-        if (!success) {
-          setError('An account with this email already exists.');
+        const res = await signup(name.trim(), email.trim(), password);
+        if (!res.success) {
+          setError(res.message || 'An account with this email already exists.');
+        } else if (res.message) {
+          setSuccessMessage(res.message);
         }
       } else {
-        const success = await login(email.trim(), password);
-        if (!success) {
-          setError('Invalid email or password. Use noureen@example.com / password.');
+        const res = await login(email.trim(), password);
+        if (!res.success) {
+          setError(res.message || 'Invalid email or password.');
         }
       }
     } catch (err) {
@@ -45,9 +50,19 @@ export const Login: React.FC = () => {
     }
   };
 
-  const handleGoogleLogin = () => {
-    // Mock login immediately as Noureen
-    login('noureen@example.com', 'password');
+  const handleGoogleLogin = async () => {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: window.location.origin }
+        });
+      } catch (err: any) {
+        setError(err.message || 'Google authentication failed.');
+      }
+    } else {
+      login('noureen@example.com', 'password');
+    }
   };
 
   return (
@@ -184,10 +199,15 @@ export const Login: React.FC = () => {
               <span className="h-px bg-slate-100 flex-1"></span>
             </div>
 
-            {/* Normal credentials warning */}
+            {/* Error or Success notification */}
             {error && (
               <div className="text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 rounded-xl p-3">
                 {error}
+              </div>
+            )}
+            {successMessage && (
+              <div className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                {successMessage}
               </div>
             )}
 
@@ -231,7 +251,7 @@ export const Login: React.FC = () => {
                 <div className="flex justify-between items-center">
                   <label className="text-xs font-semibold text-slate-500" htmlFor="password">Password</label>
                   {!isSignUp && (
-                    <a href="#forgot" onClick={(e) => { e.preventDefault(); alert("Use the standard password: 'password'"); }} className="text-[10px] font-semibold text-violet-600 hover:text-violet-700">
+                    <a href="#forgot" onClick={(e) => { e.preventDefault(); alert("Please use your registered password or reset it via your Supabase dashboard."); }} className="text-[10px] font-semibold text-violet-600 hover:text-violet-700">
                       Forgot password?
                     </a>
                   )}
@@ -240,13 +260,25 @@ export const Login: React.FC = () => {
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     id="password"
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-violet-500 focus:bg-white transition-all font-medium"
+                    className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-violet-500 focus:bg-white transition-all font-medium"
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-hidden cursor-pointer"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
               </div>
 

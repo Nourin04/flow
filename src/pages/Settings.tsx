@@ -21,9 +21,10 @@ import {
 
 interface SettingsProps {
   selectedMonth: string;
+  setSelectedMonth?: (month: string) => void;
 }
 
-export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMonth }) => {
+export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMonth, setSelectedMonth }) => {
   const { user, updateUser, logout } = useAuth();
   
   // Profile settings state
@@ -41,6 +42,9 @@ export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMont
   const [incomeList, setIncomeList] = useState<MonthlyIncome[]>([]);
   const [monthToEdit, setMonthToEdit] = useState<string | null>(null);
   const [monthlyIncomeInput, setMonthlyIncomeInput] = useState('');
+  const [showAddMonthForm, setShowAddMonthForm] = useState(false);
+  const [newMonthInput, setNewMonthInput] = useState('');
+  const [newAmountInput, setNewAmountInput] = useState('');
 
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -133,36 +137,38 @@ export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMont
       setMonthlyIncomeInput('');
       const updatedIncomes = db.getAllIncome(user.id);
       setIncomeList(updatedIncomes);
-      setMessage('Income updated successfully.');
+      setSelectedMonth?.(monthKey);
+      setMessage(`Income for ${monthKey} updated successfully to ${user.currency}${parsed.toLocaleString('en-IN')}.`);
     } catch (err) {
       console.error(err);
       setError('Failed to update income.');
     }
   };
 
-  const handleAddMonthIncome = async () => {
+  const handleCreateMonthIncome = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError('');
-    // Prompt simple inputs to create income for another month
-    const month = prompt('Enter month (YYYY-MM), e.g. 2026-09:');
-    if (!month) return;
-    const amountStr = prompt('Enter income amount:');
-    if (!amountStr) return;
-    const amount = parseFloat(amountStr);
+    setMessage('');
 
-    if (!/^\d{4}-\d{2}$/.test(month)) {
-      alert('Invalid month format. Please use YYYY-MM.');
+    if (!newMonthInput) {
+      setError('Month is required.');
       return;
     }
+    const amount = parseFloat(newAmountInput);
     if (isNaN(amount) || amount < 0) {
-      alert('Invalid amount.');
+      setError('Income amount must be a positive number.');
       return;
     }
 
     try {
-      await db.setIncome(user.id, month, amount);
+      await db.setIncome(user.id, newMonthInput, amount);
       const updatedIncomes = db.getAllIncome(user.id);
       setIncomeList(updatedIncomes);
-      setMessage('Monthly income entry created.');
+      setSelectedMonth?.(newMonthInput);
+      setMessage(`Income entry for ${newMonthInput} created and set as active.`);
+      setNewMonthInput('');
+      setNewAmountInput('');
+      setShowAddMonthForm(false);
     } catch (err) {
       console.error(err);
       setError('Failed to add income entry.');
@@ -269,19 +275,63 @@ export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMont
             </form>
           </div>
 
-          {/* Historical Income settings (Ensures Rule 51) */}
+          {/* Historical Income settings */}
           <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-display font-semibold text-slate-800 text-sm flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-violet-500" /> Income History
               </h3>
               <button
-                onClick={handleAddMonthIncome}
-                className="text-[10px] text-violet-600 font-bold hover:text-violet-700 flex items-center gap-0.5"
+                onClick={() => setShowAddMonthForm(!showAddMonthForm)}
+                className="text-[10px] text-violet-600 font-bold hover:text-violet-700 flex items-center gap-0.5 cursor-pointer"
               >
-                <Plus className="w-3.5 h-3.5" /> Add Month
+                <Plus className="w-3.5 h-3.5" /> {showAddMonthForm ? 'Cancel' : 'Add Month'}
               </button>
             </div>
+
+            {/* Quick Add Month Income Form */}
+            {showAddMonthForm && (
+              <form onSubmit={handleCreateMonthIncome} className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 mb-4 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Select Month</label>
+                    <input
+                      type="month"
+                      value={newMonthInput}
+                      onChange={(e) => setNewMonthInput(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-hidden"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Salary Amount ({user.currency})</label>
+                    <input
+                      type="number"
+                      value={newAmountInput}
+                      onChange={(e) => setNewAmountInput(e.target.value)}
+                      placeholder="e.g. 50000"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-hidden"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddMonthForm(false)}
+                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Save Month
+                  </button>
+                </div>
+              </form>
+            )}
             
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">

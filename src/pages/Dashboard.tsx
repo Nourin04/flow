@@ -39,17 +39,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
   const [budget, setBudget] = useState<Budget | null>(null);
   const [categoryBudgets, setCategoryBudgets] = useState<CategoryBudget[]>([]);
   const [showGoalToast, setShowGoalToast] = useState(true);
-
-  // Available months for selector
-  const availableMonths = [
-    { value: '2026-08', label: 'August 2026' },
-    { value: '2026-09', label: 'September 2026' },
-    { value: '2026-10', label: 'October 2026' },
-  ];
+  const [userMonths, setUserMonths] = useState<string[]>(['2026-08', '2026-09', '2026-10']);
 
   const loadData = async () => {
     if (!user) return;
     
+    // Fetch all user incomes & transactions to collect all recorded months
+    const allIncomes = db.getAllIncome(user.id);
+    const allTxs = await db.getTransactions(user.id);
+    
+    const monthSet = new Set(['2026-08', '2026-09', '2026-10', selectedMonth, ...allIncomes.map(i => i.month), ...allTxs.map(t => t.transaction_date.substring(0, 7))]);
+    setUserMonths(Array.from(monthSet).sort());
+
     // Fetch categories
     const cats = await db.getCategories(user.id);
     setCategories(cats);
@@ -139,6 +140,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
   if (todayItems.length > 0) groupedRecentTxs.push({ title: 'Today', items: todayItems });
   if (yesterdayItems.length > 0) groupedRecentTxs.push({ title: 'Yesterday', items: yesterdayItems });
   if (olderItems.length > 0) groupedRecentTxs.push({ title: 'Earlier', items: olderItems });
+
+  const formatMonthLabel = (mKey: string) => {
+    try {
+      const [year, monthStr] = mKey.split('-');
+      const date = new Date(parseInt(year, 10), parseInt(monthStr, 10) - 1, 1);
+      return date.toLocaleString('default', { month: 'long', year: 'numeric' });
+    } catch {
+      return mKey;
+    }
+  };
+
+  const availableMonths = userMonths.map(m => ({
+    value: m,
+    label: formatMonthLabel(m)
+  }));
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-300">
