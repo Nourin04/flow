@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
-import type { Budget as BudgetType, CategoryBudget, Category, Transaction } from '../lib/types';
+import type { Budget as BudgetType, CategoryBudget, Category, Transaction, MonthlyIncome } from '../lib/types';
 import { 
   Trash2, 
   Check, 
@@ -13,6 +13,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
+  Plus,
+  ArrowRight,
   Pizza,
   Car,
   Home,
@@ -32,18 +34,35 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
   const { user } = useAuth();
   
   // Data states
+  const [income, setIncome] = useState<MonthlyIncome | null>(null);
+  const [incomeList, setIncomeList] = useState<MonthlyIncome[]>([]);
   const [budget, setBudget] = useState<BudgetType | null>(null);
   const [categoryBudgets, setCategoryBudgets] = useState<CategoryBudget[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  // Editing states
-  const [editingOverall, setEditingOverall] = useState(false);
-  const [overallLimitInput, setOverallLimitInput] = useState('');
+  // Editing states for Top Header Card
+  const [editingIncome, setEditingIncome] = useState(false);
+  const [incomeInput, setIncomeInput] = useState('');
+  
+  const [editingOverallBudget, setEditingOverallBudget] = useState(false);
+  const [overallBudgetInput, setOverallBudgetInput] = useState('');
+
+  // Editing states for Category Budgets
   const [editingCategoryBudgetId, setEditingCategoryBudgetId] = useState<string | null>(null);
   const [categoryLimitInput, setCategoryLimitInput] = useState('');
+
+  // Income History Modal state
+  const [showIncomeHistoryModal, setShowIncomeHistoryModal] = useState(false);
+  const [editingHistoryMonth, setEditingHistoryMonth] = useState<string | null>(null);
+  const [historyAmountInput, setHistoryAmountInput] = useState('');
+  const [showAddMonthIncome, setShowAddMonthIncome] = useState(false);
+  const [newMonthStr, setNewMonthStr] = useState('');
+  const [newMonthAmount, setNewMonthAmount] = useState('');
+
+  // Alerts
   const [error, setError] = useState('');
-  const [copySuccess, setCopySuccess] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   // Calendar Month Popover State
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
@@ -59,15 +78,26 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
     const cats = await db.getCategories(user.id);
     setCategories(cats);
 
+    // Load monthly income for selected month
+    const inc = await db.getIncome(user.id, selectedMonth);
+    setIncome(inc);
+    setIncomeInput(inc ? inc.amount.toString() : '');
+
+    // Load all historical income entries
+    const allIncomes = db.getAllIncome(user.id);
+    // Sort descending by month
+    allIncomes.sort((a, b) => b.month.localeCompare(a.month));
+    setIncomeList(allIncomes);
+
     // Load overall budget for selected month
     const bgt = await db.getBudget(user.id, selectedMonth);
     setBudget(bgt);
+    setOverallBudgetInput(bgt ? bgt.total_amount.toString() : '');
+    
     if (bgt) {
-      setOverallLimitInput(bgt.total_amount.toString());
       const cb = await db.getCategoryBudgets(user.id, bgt.id);
       setCategoryBudgets(cb);
     } else {
-      setOverallLimitInput('');
       setCategoryBudgets([]);
     }
 
@@ -87,7 +117,6 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   })();
 
-  // Month Formatter
   const formatMonthLabel = (mKey: string) => {
     try {
       const [year, monthNum] = mKey.split('-');
@@ -98,23 +127,88 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
     }
   };
 
+  // Handlers for Top Card Income & Overall Budget
+  const handleSaveIncome = async () => {
+    setError('');
+    const parsed = parseFloat(incomeInput);
+    if (isNaN(parsed) || parsed < 0) {
+      setError('Monthly income must be a valid number.');
+      return;
+    }
+    try {
+      await db.setIncome(user.id, selectedMonth, parsed);
+      setEditingIncome(false);
+      loadData();
+      setSuccessMessage('Monthly income updated successfully.');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to update monthly income.');
+    }
+  };
+
   const handleSaveOverallBudget = async () => {
     setError('');
-    const parsed = parseFloat(overallLimitInput);
+    const parsed = parseFloat(overallBudgetInput);
     if (isNaN(parsed) || parsed <= 0) {
-      setError('Spending limit must be a positive number.');
+      setError('Monthly budget must be a positive number.');
       return;
     }
     try {
       await db.setBudget(user.id, selectedMonth, parsed);
-      setEditingOverall(false);
+      setEditingOverallBudget(false);
       loadData();
+      setSuccessMessage('Monthly budget updated successfully.');
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
       console.error(err);
-      setError('Failed to save overall budget');
+      setError('Failed to save monthly budget.');
     }
   };
 
+  // Income History Modal Handlers
+  const handleSaveHistoryEntry = async (monthKey: string) => {
+    const parsed = parseFloat(historyAmountInput);
+    if (isNaN(parsed) || parsed < 0) {
+      setError('Income amount must be valid.');
+      return;
+    }
+    try {
+      await db.setIncome(user.id, monthKey, parsed);
+      setEditingHistoryMonth(null);
+      setHistoryAmountInput('');
+      loadData();
+    } catch (err) {
+      console.error(err);
+      setError('Failed to update income entry.');
+    }
+  };
+
+  const handleCreateNewMonthIncome = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!newMonthStr) {
+      setError('Please select a month.');
+      return;
+    }
+    const parsed = parseFloat(newMonthAmount);
+    if (isNaN(parsed) || parsed < 0) {
+      setError('Please enter a valid income amount.');
+      return;
+    }
+    try {
+      await db.setIncome(user.id, newMonthStr, parsed);
+      setNewMonthStr('');
+      setNewMonthAmount('');
+      setShowAddMonthIncome(false);
+      loadData();
+    } catch (err) {
+      console.error(err);
+      setError('Failed to add new month income.');
+    }
+  };
+
+  // Category Budget Handlers
   const handleSaveCategoryBudget = async (categoryId: string) => {
     setError('');
     const parsed = parseFloat(categoryLimitInput);
@@ -135,7 +229,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
       loadData();
     } catch (err) {
       console.error(err);
-      setError('Failed to save category budget');
+      setError('Failed to save category budget.');
     }
   };
 
@@ -146,14 +240,13 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
       loadData();
     } catch (err) {
       console.error(err);
-      setError('Failed to delete category budget');
+      setError('Failed to delete category budget.');
     }
   };
 
-  // Copy budget from previous month helper
+  // Copy budget from previous month
   const handleCopyFromPreviousMonth = async () => {
     setError('');
-    setCopySuccess('');
     try {
       const [y, m] = selectedMonth.split('-').map(Number);
       const prevDate = new Date(y, m - 2, 1);
@@ -172,8 +265,8 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
         await db.setCategoryBudget(user.id, newBudget.id, cb.category_id, cb.amount);
       }
 
-      setCopySuccess(`Budget successfully copied from ${formatMonthLabel(prevMonthStr)}!`);
-      setTimeout(() => setCopySuccess(''), 4000);
+      setSuccessMessage(`Budget successfully copied from ${formatMonthLabel(prevMonthStr)}!`);
+      setTimeout(() => setSuccessMessage(''), 4000);
       loadData();
     } catch (err) {
       console.error(err);
@@ -182,10 +275,10 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
   };
 
   // Calculations
-  const totalSpent = transactions.reduce((sum, tx) => sum + tx.amount, 0);
   const overallLimit = budget ? budget.total_amount : 0;
-  const overallRemaining = Math.max(0, overallLimit - totalSpent);
-  const overallUsedPctRaw = overallLimit > 0 ? Math.round((totalSpent / overallLimit) * 100) : 0;
+  const totalSpent = transactions.reduce((sum, tx) => sum + tx.amount, 0);
+  const remaining = Math.max(0, overallLimit - totalSpent);
+  const usedPct = overallLimit > 0 ? Math.round((totalSpent / overallLimit) * 100) : 0;
 
   // Category Icon Mapper
   const getCategoryIcon = (iconName: string) => {
@@ -208,7 +301,9 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-900 font-display">Budget</h2>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">Control your monthly spending pace and category limits.</p>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">
+            Plan your spending pipeline: Income → Budget → Spending → Remaining.
+          </p>
         </div>
 
         {/* Interactive Calendar Month Picker Button */}
@@ -229,7 +324,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
             <ChevronDown className={`w-3.5 h-3.5 text-slate-400 ml-0.5 transition-transform duration-200 ${showCalendarPicker ? 'rotate-180 text-violet-600' : ''}`} />
           </button>
 
-          {/* Interactive Calendar Month Popover */}
+          {/* Popover */}
           {showCalendarPicker && (
             <>
               <div 
@@ -238,7 +333,6 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
               />
               
               <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150 select-none">
-                {/* Year navigation */}
                 <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
                   <button
                     type="button"
@@ -259,7 +353,6 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
                   </button>
                 </div>
 
-                {/* 12 Months Grid */}
                 <div className="grid grid-cols-3 gap-2">
                   {Array.from({ length: 12 }, (_, i) => {
                     const mStr = String(i + 1).padStart(2, '0');
@@ -291,7 +384,6 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
                   })}
                 </div>
 
-                {/* Date Input Shortcut */}
                 <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
                   <span className="text-slate-400 font-medium">Or pick date:</span>
                   <input
@@ -321,136 +413,212 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
         </div>
       )}
 
-      {copySuccess && (
+      {successMessage && (
         <div className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex items-center gap-2">
           <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-          <span>{copySuccess}</span>
+          <span>{successMessage}</span>
         </div>
       )}
 
-      {/* Row 1: Overall Budget Card */}
-      <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+      {/* Main Budget Structure Card: Income -> Budget -> Spending -> Remaining */}
+      <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs flex flex-col gap-6">
         
-        {/* Metric info */}
-        <div className="md:col-span-5 flex flex-col gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-violet-50 text-violet-500 flex items-center justify-center flex-shrink-0">
-              <Wallet className="w-4.5 h-4.5" />
-            </div>
-            <div>
-              <h3 className="font-display font-semibold text-slate-800 text-sm">Overall Monthly Budget</h3>
-              <p className="text-[10px] text-slate-400 font-semibold uppercase">{formatMonthLabel(selectedMonth)}</p>
-            </div>
-          </div>
+        {/* Card Header Label */}
+        <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+          <span className="font-display font-extrabold text-sm text-slate-800">
+            {formatMonthLabel(selectedMonth)}
+          </span>
+          <button
+            onClick={() => setShowIncomeHistoryModal(true)}
+            className="text-xs text-violet-600 hover:text-violet-700 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+          >
+            <span>Income History</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
 
-          <div className="flex items-baseline gap-2">
-            {editingOverall ? (
-              <div className="flex items-center gap-2 w-full mt-1">
+        {/* Top Row: Monthly Income & Monthly Budget */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          
+          {/* Monthly Income Tile */}
+          <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-4 flex flex-col justify-between gap-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Monthly Income</span>
+              {!editingIncome && (
+                <button
+                  onClick={() => setEditingIncome(true)}
+                  className="text-xs text-violet-600 hover:text-violet-700 font-bold flex items-center gap-0.5 hover:underline cursor-pointer"
+                >
+                  ✎ Edit
+                </button>
+              )}
+            </div>
+
+            {editingIncome ? (
+              <div className="flex items-center gap-2 mt-1">
                 <div className="relative flex-1">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-display text-sm font-semibold">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-display text-xs font-bold">
                     {user.currency}
                   </span>
                   <input
                     type="number"
-                    value={overallLimitInput}
-                    onChange={(e) => setOverallLimitInput(e.target.value)}
-                    className="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-200/70 rounded-xl text-sm font-semibold font-display text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 focus:bg-white transition-all"
+                    value={incomeInput}
+                    onChange={(e) => setIncomeInput(e.target.value)}
+                    className="w-full pl-6 pr-2 py-1 bg-white border border-slate-200 rounded-lg text-sm font-extrabold font-display text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                    placeholder="e.g. 10000"
+                    autoFocus
+                  />
+                </div>
+                <button
+                  onClick={handleSaveIncome}
+                  className="p-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingIncome(false);
+                    setIncomeInput(income ? income.amount.toString() : '');
+                  }}
+                  className="p-1.5 border border-slate-200 text-slate-400 hover:bg-slate-100 rounded-lg cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="text-2xl font-extrabold text-slate-900 font-display mt-1">
+                {income ? `${user.currency}${income.amount.toLocaleString('en-IN')}` : `${user.currency}0`}
+              </div>
+            )}
+          </div>
+
+          {/* Monthly Budget Tile */}
+          <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-4 flex flex-col justify-between gap-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Monthly Budget</span>
+              {!editingOverallBudget && (
+                <button
+                  onClick={() => setEditingOverallBudget(true)}
+                  className="text-xs text-violet-600 hover:text-violet-700 font-bold flex items-center gap-0.5 hover:underline cursor-pointer"
+                >
+                  ✎ Edit
+                </button>
+              )}
+            </div>
+
+            {editingOverallBudget ? (
+              <div className="flex items-center gap-2 mt-1">
+                <div className="relative flex-1">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-display text-xs font-bold">
+                    {user.currency}
+                  </span>
+                  <input
+                    type="number"
+                    value={overallBudgetInput}
+                    onChange={(e) => setOverallBudgetInput(e.target.value)}
+                    className="w-full pl-6 pr-2 py-1 bg-white border border-slate-200 rounded-lg text-sm font-extrabold font-display text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                     placeholder="e.g. 8000"
                     autoFocus
                   />
                 </div>
                 <button
                   onClick={handleSaveOverallBudget}
-                  className="p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition-all shadow-xs cursor-pointer select-none"
+                  className="p-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg cursor-pointer"
                 >
                   <Check className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => {
-                    setEditingOverall(false);
-                    setOverallLimitInput(budget ? budget.total_amount.toString() : '');
+                    setEditingOverallBudget(false);
+                    setOverallBudgetInput(budget ? budget.total_amount.toString() : '');
                   }}
-                  className="p-2 border border-slate-200 text-slate-400 hover:bg-slate-50 rounded-xl transition-all cursor-pointer select-none"
+                  className="p-1.5 border border-slate-200 text-slate-400 hover:bg-slate-100 rounded-lg cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
             ) : (
-              <>
-                <span className="text-3xl font-extrabold text-slate-800 font-display">
-                  {budget ? `${user.currency}${budget.total_amount.toLocaleString('en-IN')}` : 'Not set'}
-                </span>
-                <button
-                  onClick={() => {
-                    setOverallLimitInput(budget ? budget.total_amount.toString() : '');
-                    setEditingOverall(true);
-                  }}
-                  className="p-1.5 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-all cursor-pointer"
-                  title="Edit overall budget"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                </button>
-              </>
+              <div className="text-2xl font-extrabold text-slate-900 font-display mt-1">
+                {budget ? `${user.currency}${budget.total_amount.toLocaleString('en-IN')}` : 'Not set'}
+              </div>
             )}
           </div>
+
         </div>
 
-        {/* Dynamic usage graph */}
-        <div className="md:col-span-7 flex flex-col gap-3">
-          <div className="flex justify-between items-center text-xs">
-            <span className="text-slate-400 font-semibold">Spending Utilization</span>
-            <span className="text-slate-700 font-bold font-display">
-              {totalSpent.toLocaleString('en-IN')} / {overallLimit > 0 ? overallLimit.toLocaleString('en-IN') : 'N/A'} ({overallUsedPctRaw}%)
-            </span>
+        {/* Divider */}
+        <hr className="border-slate-100" />
+
+        {/* Bottom Row: Spending & Remaining */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Spending</span>
+            <div className="text-2xl font-extrabold text-slate-900 font-display mt-1">
+              {user.currency}{totalSpent.toLocaleString('en-IN')}
+            </div>
           </div>
 
-          <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
+          <div>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Remaining</span>
+            <div className="text-2xl font-extrabold text-emerald-600 font-display mt-1">
+              {user.currency}{remaining.toLocaleString('en-IN')}
+            </div>
+          </div>
+        </div>
+
+        {/* Progress Bar & Percentage */}
+        <div className="space-y-2 pt-1">
+          <div className="h-3.5 w-full bg-slate-100 rounded-full overflow-hidden p-0.5">
             <div 
-              className={`h-full transition-all duration-500 rounded-full ${
-                overallUsedPctRaw > 100 
-                  ? 'bg-rose-500 animate-pulse' 
-                  : overallUsedPctRaw > 90 
+              className={`h-full rounded-full transition-all duration-500 ${
+                usedPct > 100 
+                  ? 'bg-rose-500' 
+                  : usedPct > 90 
                     ? 'bg-amber-500' 
-                    : 'bg-violet-500'
+                    : 'bg-violet-600'
               }`}
-              style={{ width: `${Math.min(100, overallUsedPctRaw)}%` }}
-            ></div>
+              style={{ width: `${Math.min(100, usedPct)}%` }}
+            />
           </div>
-
-          <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-            <span>Spent: {user.currency}{totalSpent.toLocaleString('en-IN')}</span>
-            <span>Remaining: {user.currency}{overallRemaining.toLocaleString('en-IN')}</span>
+          <div className="flex justify-between items-center text-xs font-bold text-slate-500">
+            <span>{totalSpent.toLocaleString('en-IN')} / {overallLimit > 0 ? overallLimit.toLocaleString('en-IN') : '0'}</span>
+            <span className="font-display text-slate-700">{usedPct}%</span>
           </div>
         </div>
+
       </div>
 
-      {/* Zero Budget Setup Helper Card */}
+      {/* Setup Budget Helper Card (If no budget set) */}
       {!budget && (
-        <div className="bg-gradient-to-r from-violet-600 to-indigo-600 rounded-2xl p-6 text-white shadow-lg flex flex-col md:flex-row items-center justify-between gap-4 select-none">
-          <div className="space-y-1">
-            <h3 className="font-display font-bold text-lg flex items-center gap-2">
-              <span>🎯</span> Setup Budget for {formatMonthLabel(selectedMonth)}
-            </h3>
-            <p className="text-xs text-violet-100 font-medium">
-              Establish your spending limit to keep your finances on track for this month.
-            </p>
+        <div className="bg-white border border-dashed border-violet-200/80 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center shrink-0 border border-violet-100/80">
+              <Wallet className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-display font-bold text-slate-900 text-sm">
+                Setup Budget for {formatMonthLabel(selectedMonth)}
+              </h3>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                Establish your spending limit to keep your monthly finances on track.
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 shrink-0">
             <button
               onClick={handleCopyFromPreviousMonth}
-              className="bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl px-4 py-2.5 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer"
+              className="px-3.5 py-2 border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer select-none"
             >
-              <Copy className="w-3.5 h-3.5 text-violet-200" />
+              <Copy className="w-3.5 h-3.5 text-slate-400" />
               <span>Copy Previous Month</span>
             </button>
-            
             <button
               onClick={() => {
-                setOverallLimitInput('8000');
-                setEditingOverall(true);
+                setOverallBudgetInput('8000');
+                setEditingOverallBudget(true);
               }}
-              className="bg-white text-violet-700 hover:bg-violet-50 rounded-xl px-4 py-2.5 text-xs font-bold shadow-md transition-all cursor-pointer"
+              className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl px-4 py-2 text-xs font-bold shadow-md shadow-violet-100 flex items-center gap-1 active:scale-98 transition-all cursor-pointer select-none"
             >
               + Set Budget
             </button>
@@ -458,7 +626,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
         </div>
       )}
 
-      {/* Row 2: Category Budgets Settings */}
+      {/* Category Budgets Section */}
       <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -469,17 +637,17 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
           {budget && (
             <button
               onClick={handleCopyFromPreviousMonth}
-              className="text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1.5 cursor-pointer hover:underline"
+              className="text-xs text-violet-600 hover:text-violet-700 font-bold flex items-center gap-1.5 cursor-pointer hover:underline"
             >
               <Copy className="w-3.5 h-3.5" />
-              <span>Copy Previous Allocations</span>
+              <span>Copy Allocations</span>
             </button>
           )}
         </div>
 
         {!budget ? (
           <div className="py-8 text-center text-xs text-slate-400 font-semibold">
-            Please configure your overall monthly budget limit above to enable category budgets.
+            Please configure your monthly budget above to enable category budgets.
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
@@ -505,7 +673,6 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
                       : 'border-dashed border-slate-200 hover:border-violet-300 bg-white'
                   }`}
                 >
-                  {/* Category Header */}
                   <div className="flex justify-between items-center gap-3">
                     <div className="flex items-center gap-2.5">
                       <div 
@@ -524,10 +691,9 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
                       </div>
                     </div>
 
-                    {/* Budget Actions / Forms */}
                     {isEditing ? (
                       <div className="flex items-center gap-1.5 animate-in slide-in-from-right-1 duration-150">
-                        <div className="relative w-32 sm:w-36">
+                        <div className="relative w-28">
                           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 font-display text-[10px] font-semibold">
                             {user.currency}
                           </span>
@@ -535,7 +701,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
                             type="number"
                             value={categoryLimitInput}
                             onChange={(e) => setCategoryLimitInput(e.target.value)}
-                            className="w-full pl-5 pr-1 py-1 bg-white border border-slate-200/70 rounded-lg text-xs font-semibold font-display text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                            className="w-full pl-5 pr-1 py-1 bg-white border border-slate-200/70 rounded-lg text-xs font-semibold font-display text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                             placeholder="Limit"
                             autoFocus
                           />
@@ -567,7 +733,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
                             setEditingCategoryBudgetId(cat.id);
                           }}
                           className="p-1 text-slate-400 hover:text-violet-600 rounded-md hover:bg-violet-50 transition-colors cursor-pointer"
-                          title="Edit category budget"
+                          title="Edit limit"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
@@ -592,7 +758,6 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
                     )}
                   </div>
 
-                  {/* Category Progress Bar */}
                   {catBudget && (
                     <div className="mt-3.5 space-y-1">
                       <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
@@ -602,7 +767,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
                             width: `${Math.min(100, percent)}%`,
                             backgroundColor: cat.color
                           }}
-                        ></div>
+                        />
                       </div>
                       <div className="flex justify-between items-center text-[9px] font-semibold text-slate-400">
                         <span>{percent}% Used</span>
@@ -612,13 +777,168 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
                       </div>
                     </div>
                   )}
-
                 </div>
               );
             })}
           </div>
         )}
       </div>
+
+      {/* Income History Modal / Drawer */}
+      {showIncomeHistoryModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
+            
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 font-display">Income History</h3>
+                <p className="text-xs text-slate-400 font-medium mt-0.5">Historical earnings log by month.</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowIncomeHistoryModal(false);
+                  setEditingHistoryMonth(null);
+                  setShowAddMonthIncome(false);
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Add Month Trigger */}
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Monthly Records</span>
+              <button
+                onClick={() => setShowAddMonthIncome(!showAddMonthIncome)}
+                className="text-xs text-violet-600 hover:text-violet-700 font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                {showAddMonthIncome ? 'Cancel' : 'Add Month'}
+              </button>
+            </div>
+
+            {/* Add New Month Form */}
+            {showAddMonthIncome && (
+              <form onSubmit={handleCreateNewMonthIncome} className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Month</label>
+                    <input
+                      type="month"
+                      value={newMonthStr}
+                      onChange={(e) => setNewMonthStr(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Income ({user.currency})</label>
+                    <input
+                      type="number"
+                      value={newMonthAmount}
+                      onChange={(e) => setNewMonthAmount(e.target.value)}
+                      placeholder="e.g. 10000"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="submit"
+                    className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer"
+                  >
+                    Save Entry
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Income History List */}
+            <div className="max-h-64 overflow-y-auto divide-y divide-slate-50 pr-1">
+              {incomeList.length > 0 ? (
+                incomeList.map((inc) => {
+                  const isEditingThis = editingHistoryMonth === inc.month;
+                  return (
+                    <div key={inc.month} className="flex justify-between items-center py-3">
+                      <div>
+                        <span className="text-xs font-bold text-slate-800">{formatMonthLabel(inc.month)}</span>
+                        {inc.month === selectedMonth && (
+                          <span className="ml-2 text-[9px] font-bold text-violet-600 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded-md">
+                            Selected
+                          </span>
+                        )}
+                      </div>
+
+                      {isEditingThis ? (
+                        <div className="flex items-center gap-1.5">
+                          <div className="relative w-24">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 font-display text-[10px] font-bold">
+                              {user.currency}
+                            </span>
+                            <input
+                              type="number"
+                              value={historyAmountInput}
+                              onChange={(e) => setHistoryAmountInput(e.target.value)}
+                              className="w-full pl-5 pr-1 py-1 bg-white border border-slate-200 rounded-md text-xs font-bold focus:outline-none"
+                              autoFocus
+                            />
+                          </div>
+                          <button
+                            onClick={() => handleSaveHistoryEntry(inc.month)}
+                            className="p-1 bg-emerald-500 text-white rounded-md cursor-pointer"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingHistoryMonth(null);
+                              setHistoryAmountInput('');
+                            }}
+                            className="p-1 border border-slate-200 text-slate-400 rounded-md cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-4">
+                          <span className="text-xs font-extrabold text-slate-900 font-display">
+                            {user.currency}{inc.amount.toLocaleString('en-IN')}
+                          </span>
+                          <button
+                            onClick={() => {
+                              setEditingHistoryMonth(inc.month);
+                              setHistoryAmountInput(inc.amount.toString());
+                            }}
+                            className="text-xs text-violet-600 hover:text-violet-700 font-bold hover:underline cursor-pointer"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="py-6 text-center text-xs text-slate-400 font-medium">
+                  No historical income records found.
+                </div>
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => setShowIncomeHistoryModal(false)}
+                className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

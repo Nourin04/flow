@@ -1,31 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { db } from '../lib/db';
-import type { Category, MonthlyIncome } from '../lib/types';
-import {
-  User,
-  DollarSign,
-  Tag,
-  Check,
-  Plus,
-  Pizza,
-  Car,
-  Home,
-  ShoppingBag,
-  GraduationCap,
-  Gift,
-  Sparkles,
-  HelpCircle,
-  ChevronDown,
-  X
-} from 'lucide-react';
+import { User, LogOut, Trash2, ChevronDown, Check } from 'lucide-react';
 
 interface SettingsProps {
-  selectedMonth: string;
+  selectedMonth?: string;
   setSelectedMonth?: (month: string) => void;
 }
 
-export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMonth, setSelectedMonth }) => {
+export const Settings: React.FC<SettingsProps> = () => {
   const { user, updateUser, logout } = useAuth();
 
   // Profile settings state
@@ -33,38 +15,15 @@ export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMont
   const [profileEmail, setProfileEmail] = useState('');
   const [currency, setCurrency] = useState('₹');
 
-  // Categories management state
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [newCatName, setNewCatName] = useState('');
-  const [newCatColor, setNewCatColor] = useState('#8B5CF6');
-  const [newCatIcon, setNewCatIcon] = useState('Sparkles');
-
-  // Income history state
-  const [incomeList, setIncomeList] = useState<MonthlyIncome[]>([]);
-  const [monthToEdit, setMonthToEdit] = useState<string | null>(null);
-  const [monthlyIncomeInput, setMonthlyIncomeInput] = useState('');
-  const [showAddMonthForm, setShowAddMonthForm] = useState(false);
-  const [newMonthInput, setNewMonthInput] = useState('');
-  const [newAmountInput, setNewAmountInput] = useState('');
-
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  const loadData = async () => {
-    if (!user) return;
-    setProfileName(user.name);
-    setProfileEmail(user.email);
-    setCurrency(user.currency);
-
-    const cats = await db.getCategories(user.id);
-    setCategories(cats);
-
-    const incomes = db.getAllIncome(user.id);
-    setIncomeList(incomes);
-  };
-
   useEffect(() => {
-    loadData();
+    if (user) {
+      setProfileName(user.name);
+      setProfileEmail(user.email);
+      setCurrency(user.currency || '₹');
+    }
   }, [user]);
 
   if (!user) return null;
@@ -81,135 +40,36 @@ export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMont
         currency
       });
       setMessage('Profile updated successfully.');
+      setTimeout(() => setMessage(''), 3000);
     } catch (err) {
       console.error(err);
       setError('Failed to update profile.');
     }
   };
 
-  const handleAddCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setMessage('');
-
-    if (!newCatName.trim()) {
-      setError('Category name is required.');
-      return;
-    }
-
-    try {
-      await db.addCategory(user.id, {
-        name: newCatName.trim(),
-        color: newCatColor,
-        icon: newCatIcon,
-        is_active: true
-      });
-      setNewCatName('');
-      const updatedCats = await db.getCategories(user.id);
-      setCategories(updatedCats);
-      setMessage('Custom category added successfully.');
-    } catch (err) {
-      console.error(err);
-      setError('Failed to create category.');
-    }
-  };
-
-  const handleToggleCategory = async (catId: string, currentActive: boolean) => {
-    try {
-      await db.updateCategory(user.id, catId, { is_active: !currentActive });
-      const updatedCats = await db.getCategories(user.id);
-      setCategories(updatedCats);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to toggle category.');
-    }
-  };
-
-  const handleUpdateIncome = async (monthKey: string) => {
-    const parsed = parseFloat(monthlyIncomeInput);
-    if (isNaN(parsed) || parsed < 0) {
-      setError('Income must be a positive number.');
-      return;
-    }
-
-    try {
-      await db.setIncome(user.id, monthKey, parsed);
-      setMonthToEdit(null);
-      setMonthlyIncomeInput('');
-      const updatedIncomes = db.getAllIncome(user.id);
-      setIncomeList(updatedIncomes);
-      setSelectedMonth?.(monthKey);
-      setMessage(`Income for ${monthKey} updated successfully to ${user.currency}${parsed.toLocaleString('en-IN')}.`);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to update income.');
-    }
-  };
-
-  const handleCreateMonthIncome = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setMessage('');
-
-    if (!newMonthInput) {
-      setError('Month is required.');
-      return;
-    }
-    const amount = parseFloat(newAmountInput);
-    if (isNaN(amount) || amount < 0) {
-      setError('Income amount must be a positive number.');
-      return;
-    }
-
-    try {
-      await db.setIncome(user.id, newMonthInput, amount);
-      const updatedIncomes = db.getAllIncome(user.id);
-      setIncomeList(updatedIncomes);
-      setSelectedMonth?.(newMonthInput);
-      setMessage(`Income entry for ${newMonthInput} created and set as active.`);
-      setNewMonthInput('');
-      setNewAmountInput('');
-      setShowAddMonthForm(false);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to add income entry.');
-    }
-  };
-
   const handleDeleteAccount = () => {
-    const doubleConfirm = window.confirm('Are you absolutely sure you want to delete your Flow account? This will wipe all financial logs permanently.');
+    const doubleConfirm = window.confirm(
+      'Are you absolutely sure you want to delete your Flow account? This will wipe all financial logs permanently.'
+    );
     if (doubleConfirm) {
       localStorage.clear();
       logout();
     }
   };
 
-  // Category Icon components
-  const availableIcons = ['Pizza', 'Car', 'Home', 'ShoppingBag', 'GraduationCap', 'Gift', 'Sparkles', 'HelpCircle'];
-  const getCategoryIcon = (iconName: string) => {
-    switch (iconName) {
-      case 'Pizza': return Pizza;
-      case 'Car': return Car;
-      case 'Home': return Home;
-      case 'ShoppingBag': return ShoppingBag;
-      case 'GraduationCap': return GraduationCap;
-      case 'Gift': return Gift;
-      case 'Sparkles': return Sparkles;
-      default: return HelpCircle;
-    }
-  };
-
   return (
-    <div className="flex flex-col gap-6 animate-in fade-in duration-300">
-
-      {/* Header */}
+    <div className="flex flex-col gap-8 max-w-2xl animate-in fade-in duration-300">
+      {/* Page Title */}
       <div>
-        <h2 className="text-xl font-bold text-slate-900 font-display">Settings</h2>
-        <p className="text-xs text-slate-500 font-medium mt-0.5">Configure profile attributes, historical incomes, categories, and account states.</p>
+        <h2 className="text-2xl font-bold text-slate-900 font-display">Settings</h2>
+        <p className="text-xs text-slate-500 font-medium mt-1">
+          Manage your personal profile and account preferences.
+        </p>
       </div>
 
       {message && (
-        <div className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+        <div className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex items-center gap-2">
+          <Check className="w-4 h-4 text-emerald-500" />
           {message}
         </div>
       )}
@@ -219,317 +79,107 @@ export const Settings: React.FC<SettingsProps> = ({ selectedMonth: _selectedMont
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-
-        {/* Left column: Profile form & Income configuration */}
-        <div className="lg:col-span-6 flex flex-col gap-4">
-
-          {/* Profile Details */}
-          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
-            <h3 className="font-display font-semibold text-slate-800 text-sm mb-4 flex items-center gap-2">
-              <User className="w-4 h-4 text-violet-500" /> Profile Settings
-            </h3>
-
-            <form onSubmit={handleUpdateProfile} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">Name</label>
-                <input
-                  type="text"
-                  value={profileName}
-                  onChange={(e) => setProfileName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-hidden focus:border-violet-500 focus:bg-white"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">Email Address</label>
-                <input
-                  type="email"
-                  value={profileEmail}
-                  onChange={(e) => setProfileEmail(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-hidden focus:border-violet-500 focus:bg-white"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-500">Currency Symbol</label>
-                <div className="relative">
-                  <select
-                    value={currency}
-                    onChange={(e) => setCurrency(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200/70 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 focus:bg-white transition-all appearance-none pr-8 cursor-pointer"
-                  >
-                    <option value="₹">Rupee (₹)</option>
-                    <option value="$">Dollar ($)</option>
-                    <option value="€">Euro (€)</option>
-                    <option value="£">Pound (£)</option>
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl px-4 py-2 text-xs font-semibold shadow-md shadow-violet-100 active:scale-98 transition-all cursor-pointer"
-              >
-                Save Profile
-              </button>
-            </form>
-          </div>
-
-          {/* Historical Income settings */}
-          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-display font-semibold text-slate-800 text-sm flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-violet-500" /> Income History
-              </h3>
-              <button
-                onClick={() => setShowAddMonthForm(!showAddMonthForm)}
-                className="text-[10px] text-violet-600 font-bold hover:text-violet-700 flex items-center gap-0.5 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" /> {showAddMonthForm ? 'Cancel' : 'Add Month'}
-              </button>
-            </div>
-
-            {/* Quick Add Month Income Form */}
-            {showAddMonthForm && (
-              <form onSubmit={handleCreateMonthIncome} className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 mb-4 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Select Month</label>
-                    <input
-                      type="month"
-                      value={newMonthInput}
-                      onChange={(e) => setNewMonthInput(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-hidden"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Salary Amount ({user.currency})</label>
-                    <input
-                      type="number"
-                      value={newAmountInput}
-                      onChange={(e) => setNewAmountInput(e.target.value)}
-                      placeholder="e.g. 50000"
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-hidden"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddMonthForm(false)}
-                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100 cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Save Month
-                  </button>
-                </div>
-              </form>
-            )}
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead>
-                  <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider text-[9px]">
-                    <th className="py-2">Month</th>
-                    <th className="py-2">Amount</th>
-                    <th className="py-2 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50 font-display">
-                  {incomeList.map((inc) => {
-                    const isEditing = monthToEdit === inc.month;
-                    return (
-                      <tr key={inc.month} className="hover:bg-slate-50/40">
-                        <td className="py-2.5 font-semibold text-slate-500 font-sans">{inc.month}</td>
-                        <td className="py-2.5 font-extrabold text-slate-800">
-                          {isEditing ? (
-                            <div className="relative w-24">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 font-display text-[10px]">
-                                {user.currency}
-                              </span>
-                              <input
-                                type="number"
-                                value={monthlyIncomeInput}
-                                onChange={(e) => setMonthlyIncomeInput(e.target.value)}
-                                className="w-full pl-5 pr-1 py-0.5 bg-white border border-slate-200 rounded-md text-xs font-semibold focus:outline-hidden"
-                                autoFocus
-                              />
-                            </div>
-                          ) : (
-                            `${user.currency}${inc.amount.toLocaleString('en-IN')}`
-                          )}
-                        </td>
-                        <td className="py-2.5 text-right">
-                          {isEditing ? (
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => handleUpdateIncome(inc.month)}
-                                className="p-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-md"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setMonthToEdit(null);
-                                  setMonthlyIncomeInput('');
-                                }}
-                                className="p-1 border border-slate-200 text-slate-400 rounded-md hover:bg-slate-50"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => {
-                                setMonthlyIncomeInput(inc.amount.toString());
-                                setMonthToEdit(inc.month);
-                              }}
-                              className="text-[10px] text-violet-600 hover:text-violet-700 font-bold hover:underline"
-                            >
-                              Edit
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
+      {/* Profile Section */}
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Profile</h3>
         </div>
 
-        {/* Right column: Categories Manager & Account settings */}
-        <div className="lg:col-span-6 flex flex-col gap-4">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h4 className="font-display font-bold text-slate-800 text-sm mb-4 flex items-center gap-2">
+            <User className="w-4 h-4 text-violet-500" /> Profile Settings
+          </h4>
 
-          {/* Categories Manager */}
-          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
-            <h3 className="font-display font-semibold text-slate-800 text-sm mb-4 flex items-center gap-2">
-              <Tag className="w-4 h-4 text-violet-500" /> Categories Manager
-            </h3>
+          <form onSubmit={handleUpdateProfile} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-600">Name</label>
+              <input
+                type="text"
+                value={profileName}
+                onChange={(e) => setProfileName(e.target.value)}
+                placeholder="Noureen AC"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 focus:bg-white transition-all"
+                required
+              />
+            </div>
 
-            {/* Custom Category Quick Add Form */}
-            <form onSubmit={handleAddCategory} className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-50/50 p-3.5 rounded-xl border border-slate-100 mb-4 items-end">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Category Name</label>
-                <input
-                  type="text"
-                  value={newCatName}
-                  onChange={(e) => setNewCatName(e.target.value)}
-                  placeholder="e.g. Subscriptions"
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-hidden"
-                  required
-                />
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-600">Email Address</label>
+              <input
+                type="email"
+                value={profileEmail}
+                onChange={(e) => setProfileEmail(e.target.value)}
+                placeholder="noureenac@gmail.com"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 focus:bg-white transition-all"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-600">Currency</label>
+              <div className="relative">
+                <select
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 focus:bg-white transition-all appearance-none pr-8 cursor-pointer"
+                >
+                  <option value="₹">Rupee (₹)</option>
+                  <option value="$">Dollar ($)</option>
+                  <option value="€">Euro (€)</option>
+                  <option value="£">Pound (£)</option>
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
+            </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Icon & Color</label>
-                <div className="flex gap-1.5">
-                  <div className="relative flex-1">
-                    <select
-                      value={newCatIcon}
-                      onChange={(e) => setNewCatIcon(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200/80 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 appearance-none pr-7 cursor-pointer"
-                    >
-                      {availableIcons.map(icon => (
-                        <option key={icon} value={icon}>{icon}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  </div>
-                  <input
-                    type="color"
-                    value={newCatColor}
-                    onChange={(e) => setNewCatColor(e.target.value)}
-                    className="w-8 h-8 p-0 border border-slate-200 rounded-lg cursor-pointer flex-shrink-0"
-                  />
-                </div>
-              </div>
-
+            <div className="pt-2">
               <button
                 type="submit"
-                className="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-1.5 text-xs font-semibold shadow-xs flex items-center justify-center gap-1 cursor-pointer select-none"
+                className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl px-5 py-2.5 text-xs font-bold shadow-md shadow-violet-100 active:scale-98 transition-all cursor-pointer"
               >
-                <Plus className="w-3.5 h-3.5" /> Add
-              </button>
-            </form>
-
-            {/* List and toggle categories */}
-            <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-              {categories.map((cat) => {
-                const IconComponent = getCategoryIcon(cat.icon);
-                return (
-                  <div key={cat.id} className="flex justify-between items-center py-1 border-b border-slate-50 last:border-0">
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className="w-7.5 h-7.5 rounded-lg flex items-center justify-center border text-[10px]"
-                        style={{ backgroundColor: `${cat.color}10`, borderColor: `${cat.color}20` }}
-                      >
-                        <IconComponent className="w-4 h-4" style={{ color: cat.color }} />
-                      </div>
-                      <div>
-                        <span className="text-xs font-bold text-slate-700 leading-none">{cat.name}</span>
-                        {!cat.user_id && (
-                          <span className="ml-1.5 text-[8px] font-bold text-slate-400 border border-slate-200 px-1 rounded-sm uppercase tracking-wide">
-                            Default
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Active Toggle */}
-                    <button
-                      onClick={() => handleToggleCategory(cat.id, cat.is_active)}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md cursor-pointer select-none border transition-colors ${cat.is_active
-                          ? 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100/50'
-                          : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'
-                        }`}
-                    >
-                      {cat.is_active ? 'Active' : 'Inactive'}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Account operations */}
-          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs space-y-4">
-            <h3 className="font-display font-semibold text-rose-600 text-sm">Account Operations</h3>
-            <p className="text-[10px] text-slate-400 font-semibold uppercase -mt-2">Danger zone </p>
-
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
-              <button
-                onClick={logout}
-                className="flex-1 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-50 active:scale-98 transition-all cursor-pointer"
-              >
-                Log Out
-              </button>
-              <button
-                onClick={handleDeleteAccount}
-                className="flex-1 py-2 bg-rose-50 border border-rose-100 text-rose-600 rounded-xl text-xs font-semibold hover:bg-rose-100/50 active:scale-98 transition-all cursor-pointer"
-              >
-                Delete Account
+                Save Changes
               </button>
             </div>
-          </div>
-
+          </form>
         </div>
-
       </div>
 
+      {/* Account & Danger Zone Section */}
+      <div className="space-y-4 pt-2 border-t border-slate-100">
+        <div>
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Account</h3>
+        </div>
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div>
+              <h4 className="font-display font-bold text-slate-800 text-sm">Account Session</h4>
+              <p className="text-xs text-slate-400 font-medium mt-0.5">Sign out of your active session on this device.</p>
+            </div>
+            <button
+              onClick={logout}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 active:scale-98 transition-all cursor-pointer shrink-0"
+            >
+              <LogOut className="w-4 h-4 text-slate-500" /> Log Out
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <h4 className="font-display font-bold text-rose-600 text-sm">Danger Zone</h4>
+              <p className="text-xs text-slate-400 font-medium mt-0.5">Permanently delete your account and all associated financial records.</p>
+            </div>
+            <div>
+              <button
+                onClick={handleDeleteAccount}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-rose-50 border border-rose-100 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-100/60 active:scale-98 transition-all cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4 text-rose-500" /> Delete Account
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
