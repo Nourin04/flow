@@ -2,16 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import type { Transaction, Category, Budget, MonthlyIncome } from '../lib/types';
-import { 
+import {
   LineChart,
   Line,
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer
 } from 'recharts';
-import { 
+import {
   AlertCircle,
   Sparkles
 } from 'lucide-react';
@@ -22,13 +22,13 @@ interface AnalyticsProps {
 
 export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
   const { user } = useAuth();
-  
+
   // Data states
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [incomeAmount, setIncomeAmount] = useState<number>(0);
   const [budget, setBudget] = useState<Budget | null>(null);
-  
+
   // Comparative historical state
   const [allIncomes, setAllIncomes] = useState<MonthlyIncome[]>([]);
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
@@ -63,9 +63,11 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
   if (!user) return null;
 
   // Math variables
-  const totalSpent = transactions.reduce((sum, tx) => sum + tx.amount, 0);
-  const savings = Math.max(0, incomeAmount - totalSpent);
-  const savingsRate = incomeAmount > 0 ? (savings / incomeAmount) * 100 : 0;
+  const totalSpent = transactions.filter(t => t.type !== 'income').reduce((sum, tx) => sum + tx.amount, 0);
+  const gainedIncome = transactions.filter(t => t.type === 'income').reduce((sum, tx) => sum + tx.amount, 0);
+  const totalIncome = incomeAmount + gainedIncome;
+  const savings = Math.max(0, totalIncome - totalSpent);
+  const savingsRate = totalIncome > 0 ? (savings / totalIncome) * 100 : 0;
 
   // 1. Daily Spending Trend Data
   const getDaysInMonth = (year: number, month: number) => new Date(year, month, 0).getDate();
@@ -85,7 +87,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
     const dayNum = idx + 1;
     const dateStr = `${selectedMonth}-${String(dayNum).padStart(2, '0')}`;
     const amount = transactions
-      .filter(t => t.transaction_date === dateStr)
+      .filter(t => t.transaction_date === dateStr && t.type !== 'income')
       .reduce((sum, t) => sum + t.amount, 0);
     return {
       day: dayNum,
@@ -114,7 +116,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
 
   const categoryTotals = categories.map(cat => {
     const amount = transactions
-      .filter(t => t.category_id === cat.id)
+      .filter(t => t.category_id === cat.id && t.type !== 'income')
       .reduce((sum, t) => sum + t.amount, 0);
     return {
       name: cat.name,
@@ -138,7 +140,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
     const monthTxs = allTransactions.filter(t => t.transaction_date.startsWith(inc.month));
     const spent = monthTxs.reduce((sum, t) => sum + t.amount, 0);
     const saved = Math.max(0, inc.amount - spent);
-    
+
     // Formatting label (e.g. "2026-08" -> "Aug 26")
     const [y, m] = inc.month.split('-');
     const dateObj = new Date(parseInt(y), parseInt(m) - 1, 1);
@@ -157,28 +159,28 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
 
   const getHealthStatus = () => {
     if (!budget) return { status: '🟢 On Track', color: 'text-emerald-600 bg-emerald-50 border-emerald-100', desc: "You don't have a budget set yet. Set one to start tracking limits." };
-    
+
     const pct = (totalSpent / budget.total_amount) * 100;
     const timeRatio = daysElapsed / totalDays;
     const spendingRatio = totalSpent / budget.total_amount;
 
     if (pct > 100) {
-      return { 
-        status: '🔴 Over Budget', 
-        color: 'text-rose-600 bg-rose-50 border-rose-100', 
-        desc: `You have exceeded your monthly budget of ${user.currency}${budget.total_amount.toLocaleString('en-IN')} by ${user.currency}${(totalSpent - budget.total_amount).toLocaleString('en-IN')}.` 
+      return {
+        status: '🔴 Over Budget',
+        color: 'text-rose-600 bg-rose-50 border-rose-100',
+        desc: `You have exceeded your monthly budget of ${user.currency}${budget.total_amount.toLocaleString('en-IN')} by ${user.currency}${(totalSpent - budget.total_amount).toLocaleString('en-IN')}.`
       };
     } else if (spendingRatio > timeRatio + 0.1) {
-      return { 
-        status: '🟡 Watch Spending', 
-        color: 'text-amber-600 bg-amber-50 border-amber-100', 
-        desc: `Your spending speed (${Math.round(pct)}% used) is slightly out-pacing the elapsed month days (${Math.round(timeRatio * 100)}% elapsed).` 
+      return {
+        status: '🟡 Watch Spending',
+        color: 'text-amber-600 bg-amber-50 border-amber-100',
+        desc: `Your spending speed (${Math.round(pct)}% used) is slightly out-pacing the elapsed month days (${Math.round(timeRatio * 100)}% elapsed).`
       };
     } else {
-      return { 
-        status: '🟢 On Track', 
-        color: 'text-emerald-600 bg-emerald-50 border-emerald-100', 
-        desc: `Your spending is within your expected budget pace. You've spent ${Math.round(pct)}% of your monthly budget with ${totalDays - daysElapsed} days remaining.` 
+      return {
+        status: '🟢 On Track',
+        color: 'text-emerald-600 bg-emerald-50 border-emerald-100',
+        desc: `Your spending is within your expected budget pace. You've spent ${Math.round(pct)}% of your monthly budget with ${totalDays - daysElapsed} days remaining.`
       };
     }
   };
@@ -187,7 +189,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-300">
-      
+
       {/* Header */}
       <div>
         <h2 className="text-xl font-bold text-slate-900 font-display">Analytics</h2>
@@ -206,7 +208,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
 
       {/* Row 1: KPI Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
+
         {/* Metric: Savings Rate */}
         <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Savings Rate</p>
@@ -241,8 +243,8 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
             </h3>
             <p className="text-[10px] text-slate-500 font-medium mt-0.5">{user.currency}{highestCategoryAmount.toLocaleString('en-IN')} spent</p>
           </div>
-          <div 
-            className="w-8 h-8 rounded-xl flex items-center justify-center border text-xs" 
+          <div
+            className="w-8 h-8 rounded-xl flex items-center justify-center border text-xs"
             style={{ backgroundColor: `${highestCategoryColor}10`, borderColor: `${highestCategoryColor}20` }}
           >
             <Sparkles className="w-4.5 h-4.5" style={{ color: highestCategoryColor }} />
@@ -255,7 +257,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
       <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs space-y-4">
         <div>
           <h3 className="font-display font-semibold text-slate-800 text-sm">Daily Spending Trend</h3>
-          <p className="text-[10px] text-slate-400 font-semibold mt-0.5 uppercase">Cumulative expense trajectory across current month</p>
+          <p className="text-[10px] text-slate-400 font-semibold mt-0.5 ">Cumulative expense trajectory across current month</p>
         </div>
 
         <div className="h-64 pt-2">
@@ -265,7 +267,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                <Tooltip 
+                <Tooltip
                   wrapperStyle={{ zIndex: 50, outline: 'none' }}
                   content={({ active, payload, label }) => {
                     if (active && payload && payload.length) {
@@ -282,11 +284,11 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
                     return null;
                   }}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="amount" 
-                  stroke="#7c3aed" 
-                  strokeWidth={2.5} 
+                <Line
+                  type="monotone"
+                  dataKey="amount"
+                  stroke="#7c3aed"
+                  strokeWidth={2.5}
                   dot={false}
                   activeDot={{ r: 4 }}
                 />
@@ -302,12 +304,12 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
 
       {/* Row 3: Category analysis list & Monthly Comparison history */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        
+
         {/* Category Analysis details */}
         <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex flex-col gap-4">
           <div>
             <h3 className="font-display font-semibold text-slate-800 text-sm">Category Analysis</h3>
-            <p className="text-[10px] text-slate-400 font-semibold mt-0.5 uppercase">Breakdown and percentage of total expenditure</p>
+            <p className="text-[10px] text-slate-400 font-semibold mt-0.5 ">Breakdown and percentage of total expenditure</p>
           </div>
 
           <div className="flex-1 space-y-4">
@@ -326,9 +328,9 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
                         </span>
                       </div>
                       <div className="h-2 w-full bg-slate-50 border border-slate-100 rounded-full overflow-hidden">
-                        <div 
+                        <div
                           className="h-full rounded-full transition-all duration-300"
-                          style={{ 
+                          style={{
                             width: `${pct}%`,
                             backgroundColor: cat.color
                           }}
@@ -349,7 +351,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
         <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex flex-col gap-4">
           <div>
             <h3 className="font-display font-semibold text-slate-800 text-sm">Monthly Comparison</h3>
-            <p className="text-[10px] text-slate-400 font-semibold mt-0.5 uppercase">Historical summary of income, spent, and savings</p>
+            <p className="text-[10px] text-slate-400 font-semibold mt-0.5 ">Historical summary of income, spent, and savings</p>
           </div>
 
           <div className="flex-1 overflow-x-auto">

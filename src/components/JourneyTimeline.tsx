@@ -64,11 +64,11 @@ export const JourneyTimeline: React.FC = () => {
       // Check if there was an income growth
       const prevInc = sortedIncomes[idx - 1];
       const isGrowth = inc.amount > prevInc.amount;
-      
+
       milestones.push({
         date: inc.month,
         title: isGrowth ? `Income Increase! 📈` : `Monthly Earning Month`,
-        description: isGrowth 
+        description: isGrowth
           ? `Your monthly income grew from ${user.currency}${prevInc.amount.toLocaleString('en-IN')} to ${user.currency}${inc.amount.toLocaleString('en-IN')}. Transition to higher earnings!`
           : `Tracked earnings for ${monthLabel}.`,
         icon: isGrowth ? Sparkles : Compass,
@@ -114,10 +114,10 @@ export const JourneyTimeline: React.FC = () => {
 
   return (
     <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
-      
+
       <div>
         <h3 className="font-display font-semibold text-slate-800 text-sm">Financial Journey</h3>
-        <p className="text-[10px] text-slate-400 font-semibold mt-0.5 uppercase">A look back at your stipend to salary milestones</p>
+        <p className="text-[10px] text-slate-400 font-semibold mt-0.5 ">A look back at your stipend to salary milestones</p>
       </div>
 
       {/* Stats counter row */}
@@ -146,7 +146,7 @@ export const JourneyTimeline: React.FC = () => {
           const Icon = m.icon;
           return (
             <div key={idx} className="relative animate-in slide-in-from-left-2 duration-200">
-              
+
               {/* Timeline marker */}
               <span className={`absolute -left-[35px] top-0 w-5.5 h-5.5 rounded-full border flex items-center justify-center ${m.color}`}>
                 <Icon className="w-3 h-3" />

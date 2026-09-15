@@ -23,6 +23,7 @@ export interface Transaction {
   description: string;
   category_id: string;
   transaction_date: string; // YYYY-MM-DD
+  type?: 'income' | 'expense';
   created_at: string;
   updated_at: string;
 }
@@ -35,6 +36,7 @@ export interface Category {
   color: string; // HEX color or CSS Tailwind color class prefix
   is_default: boolean;
   is_active: boolean;
+  type?: 'expense' | 'income' | 'both';
   created_at: string;
   updated_at: string;
 }

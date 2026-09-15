@@ -34,6 +34,7 @@ interface DashboardProps {
 export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMonth, setSelectedMonth }) => {
   const { user } = useAuth();
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [modalInitialType, setModalInitialType] = useState<'expense' | 'income'>('expense');
   
   // Data States
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -84,20 +85,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
 
   if (!user) return null;
 
-  // Calculations
-  const totalSpent = transactions.reduce((sum, tx) => sum + tx.amount, 0);
+  // Separate expense vs income transactions
+  const expenseTransactions = transactions.filter(t => t.type !== 'income');
+  const incomeTransactions = transactions.filter(t => t.type === 'income');
+
+  const totalSpent = expenseTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+  const gainedIncome = incomeTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+  const totalIncome = incomeAmount + gainedIncome;
+
   const remainingBudget = budget ? Math.max(0, budget.total_amount - totalSpent) : 0;
-  const totalSaved = Math.max(0, incomeAmount - totalSpent);
-  const savingsRate = incomeAmount > 0 ? (totalSaved / incomeAmount) * 100 : 0;
+  const totalSaved = Math.max(0, totalIncome - totalSpent);
+  const savingsRate = totalIncome > 0 ? (totalSaved / totalIncome) * 100 : 0;
 
   // Format currency
   const formatVal = (val: number) => {
     return `${user.currency}${val.toLocaleString('en-IN')}`;
   };
 
-  // Group transactions for Pie Chart
+  // Group transactions for Pie Chart (Expenses only)
   const categorySpending = categories.map(cat => {
-    const amount = transactions
+    const amount = expenseTransactions
       .filter(t => t.category_id === cat.id)
       .reduce((sum, t) => sum + t.amount, 0);
     return {
@@ -274,12 +281,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
             )}
           </div>
 
-          <button
-            onClick={() => setIsExpenseModalOpen(true)}
-            className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl px-4 py-2 text-xs font-semibold shadow-md shadow-violet-100 flex items-center gap-1.5 active:scale-98 transition-all cursor-pointer select-none"
-          >
-            <span className="text-sm">+</span> Add Expense
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setModalInitialType('income');
+                setIsExpenseModalOpen(true);
+              }}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-3.5 py-2 text-xs font-semibold shadow-md shadow-emerald-100 flex items-center gap-1.5 active:scale-98 transition-all cursor-pointer select-none"
+            >
+              <span className="text-sm">+</span> Add Money Gained
+            </button>
+            <button
+              onClick={() => {
+                setModalInitialType('expense');
+                setIsExpenseModalOpen(true);
+              }}
+              className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl px-3.5 py-2 text-xs font-semibold shadow-md shadow-violet-100 flex items-center gap-1.5 active:scale-98 transition-all cursor-pointer select-none"
+            >
+              <span className="text-sm">+</span> Add Expense
+            </button>
+          </div>
         </div>
       </div>
 
@@ -292,9 +313,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
           </div>
           <div>
             <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Total Income</p>
-            <h3 className="text-xl font-extrabold text-slate-800 font-display mt-0.5">{formatVal(incomeAmount)}</h3>
+            <h3 className="text-xl font-extrabold text-slate-800 font-display mt-0.5">{formatVal(totalIncome)}</h3>
             <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md mt-1">
-              This month <ArrowUpRight className="w-2.5 h-2.5" />
+              {gainedIncome > 0 ? `Base: ${formatVal(incomeAmount)} + Extra: ${formatVal(gainedIncome)}` : 'Salary Income'} <ArrowUpRight className="w-2.5 h-2.5" />
             </span>
           </div>
         </div>
@@ -361,7 +382,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
               <div className="flex justify-between items-center bg-slate-50 px-4 py-3 rounded-xl">
                 <div>
                   <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Income</p>
-                  <p className="text-sm font-extrabold text-slate-800 font-display">{formatVal(incomeAmount)}</p>
+                  <p className="text-sm font-extrabold text-slate-800 font-display">{formatVal(totalIncome)}</p>
                 </div>
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></div>
               </div>
@@ -370,11 +391,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
               <div className="relative h-1.5 bg-slate-100 rounded-full overflow-hidden flex">
                 <div 
                   className="h-full bg-rose-400" 
-                  style={{ width: `${incomeAmount > 0 ? (totalSpent / incomeAmount) * 100 : 0}%` }}
+                  style={{ width: `${totalIncome > 0 ? (totalSpent / totalIncome) * 100 : 0}%` }}
                 ></div>
                 <div 
                   className="h-full bg-emerald-500" 
-                  style={{ width: `${incomeAmount > 0 ? (totalSaved / incomeAmount) * 100 : 0}%` }}
+                  style={{ width: `${totalIncome > 0 ? (totalSaved / totalIncome) * 100 : 0}%` }}
                 ></div>
               </div>
 
@@ -525,6 +546,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
                     {group.items.map((tx) => {
                       const cat = categories.find(c => c.id === tx.category_id);
                       const IconComponent = getCategoryIcon(cat?.icon || 'HelpCircle');
+                      const isIncomeTx = tx.type === 'income';
                       
                       // Format timestamp
                       let displayTime = '';
@@ -542,17 +564,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
                           <div className="flex items-center gap-3">
                             <div 
                               className="w-8 h-8 rounded-xl flex items-center justify-center border text-xs" 
-                              style={{ backgroundColor: `${cat?.color}10`, borderColor: `${cat?.color}20` }}
+                              style={{ 
+                                backgroundColor: isIncomeTx ? '#f0fdf4' : `${cat?.color}10`, 
+                                borderColor: isIncomeTx ? '#bbf7d0' : `${cat?.color}20` 
+                              }}
                             >
-                              <IconComponent className="w-4 h-4" style={{ color: cat?.color }} />
+                              <IconComponent className="w-4 h-4" style={{ color: isIncomeTx ? '#16a34a' : cat?.color }} />
                             </div>
                             <div>
                               <p className="text-xs font-semibold text-slate-800 leading-tight">{tx.description}</p>
-                              <p className="text-[10px] text-slate-400 mt-0.5 leading-none">{cat?.name}</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5 leading-none">{cat?.name || (isIncomeTx ? 'Income' : 'General')}</p>
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="text-xs font-bold font-display text-rose-500">-{formatVal(tx.amount)}</p>
+                            <p className={`text-xs font-bold font-display ${isIncomeTx ? 'text-emerald-600' : 'text-rose-500'}`}>
+                              {isIncomeTx ? `+${formatVal(tx.amount)}` : `-${formatVal(tx.amount)}`}
+                            </p>
                             <p className="text-[9px] text-slate-400 mt-0.5 leading-none font-medium">{displayTime}</p>
                           </div>
                         </div>
@@ -564,13 +591,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
             ) : (
               <div className="flex flex-col items-center justify-center h-full gap-2 py-8">
                 <p className="text-xs text-slate-500 font-semibold">Your financial story starts here.</p>
-                <p className="text-[10px] text-slate-400 font-medium text-center">Add your first expense to start understanding where your money goes.</p>
-                <button
-                  onClick={() => setIsExpenseModalOpen(true)}
-                  className="mt-2 text-xs font-semibold text-violet-600 hover:text-violet-700 bg-violet-50/50 hover:bg-violet-50 px-3 py-1.5 rounded-lg border border-violet-100/50"
-                >
-                  + Add First Expense
-                </button>
+                <p className="text-[10px] text-slate-400 font-medium text-center">Add your first expense or money gained to start tracking.</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <button
+                    onClick={() => { setModalInitialType('income'); setIsExpenseModalOpen(true); }}
+                    className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50/70 hover:bg-emerald-100/80 px-3 py-1.5 rounded-lg border border-emerald-100 cursor-pointer"
+                  >
+                    + Add Money Gained
+                  </button>
+                  <button
+                    onClick={() => { setModalInitialType('expense'); setIsExpenseModalOpen(true); }}
+                    className="text-xs font-semibold text-violet-600 hover:text-violet-700 bg-violet-50/50 hover:bg-violet-50 px-3 py-1.5 rounded-lg border border-violet-100/50 cursor-pointer"
+                  >
+                    + Add Expense
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -621,7 +656,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
               if (!cat) return null;
               
               const catSpent = transactions
-                .filter(t => t.category_id === cat.id)
+                .filter(t => t.category_id === cat.id && t.type !== 'income')
                 .reduce((sum, t) => sum + t.amount, 0);
               
               const percent = cb.amount > 0 ? Math.round((catSpent / cb.amount) * 100) : 0;
@@ -673,6 +708,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
         isOpen={isExpenseModalOpen}
         onClose={() => setIsExpenseModalOpen(false)}
         onSave={loadData}
+        initialType={modalInitialType}
       />
     </div>
   );

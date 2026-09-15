@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import type { Budget as BudgetType, CategoryBudget, Category, Transaction, MonthlyIncome } from '../lib/types';
-import { 
-  Trash2, 
-  Check, 
-  X, 
-  Edit2, 
+import {
+  Trash2,
+  Check,
+  X,
+  Edit2,
   Wallet,
   Calendar,
   ChevronDown,
@@ -32,7 +32,7 @@ interface BudgetProps {
 
 export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth }) => {
   const { user } = useAuth();
-  
+
   // Data states
   const [income, setIncome] = useState<MonthlyIncome | null>(null);
   const [incomeList, setIncomeList] = useState<MonthlyIncome[]>([]);
@@ -44,7 +44,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
   // Editing states for Top Header Card
   const [editingIncome, setEditingIncome] = useState(false);
   const [incomeInput, setIncomeInput] = useState('');
-  
+
   const [editingOverallBudget, setEditingOverallBudget] = useState(false);
   const [overallBudgetInput, setOverallBudgetInput] = useState('');
 
@@ -73,7 +73,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
 
   const loadData = async () => {
     if (!user) return;
-    
+
     // Load categories
     const cats = await db.getCategories(user.id);
     setCategories(cats);
@@ -93,7 +93,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
     const bgt = await db.getBudget(user.id, selectedMonth);
     setBudget(bgt);
     setOverallBudgetInput(bgt ? bgt.total_amount.toString() : '');
-    
+
     if (bgt) {
       const cb = await db.getCategoryBudgets(user.id, bgt.id);
       setCategoryBudgets(cb);
@@ -276,7 +276,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
 
   // Calculations
   const overallLimit = budget ? budget.total_amount : 0;
-  const totalSpent = transactions.reduce((sum, tx) => sum + tx.amount, 0);
+  const totalSpent = transactions.filter(t => t.type !== 'income').reduce((sum, tx) => sum + tx.amount, 0);
   const remaining = Math.max(0, overallLimit - totalSpent);
   const usedPct = overallLimit > 0 ? Math.round((totalSpent / overallLimit) * 100) : 0;
 
@@ -296,7 +296,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-300">
-      
+
       {/* Header & Calendar Month Selector */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -327,11 +327,11 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
           {/* Popover */}
           {showCalendarPicker && (
             <>
-              <div 
-                className="fixed inset-0 z-40" 
-                onClick={() => setShowCalendarPicker(false)} 
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setShowCalendarPicker(false)}
               />
-              
+
               <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150 select-none">
                 <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
                   <button
@@ -369,13 +369,12 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
                           setSelectedMonth(mKey);
                           setShowCalendarPicker(false);
                         }}
-                        className={`py-2 px-1 rounded-xl text-xs font-semibold flex flex-col items-center justify-center transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-violet-600 text-white font-bold shadow-md shadow-violet-200 scale-105'
-                            : isCurrent
+                        className={`py-2 px-1 rounded-xl text-xs font-semibold flex flex-col items-center justify-center transition-all cursor-pointer ${isSelected
+                          ? 'bg-violet-600 text-white font-bold shadow-md shadow-violet-200 scale-105'
+                          : isCurrent
                             ? 'bg-violet-50 text-violet-700 border border-violet-200 font-bold'
                             : 'text-slate-700 hover:bg-slate-100/80 hover:text-slate-900'
-                        }`}
+                          }`}
                       >
                         <span>{monthName}</span>
                         {isCurrent && <span className={`text-[8px] mt-0.5 ${isSelected ? 'opacity-90 text-violet-100' : 'text-violet-500 font-bold'}`}>• Today</span>}
@@ -422,7 +421,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
 
       {/* Main Budget Structure Card: Income -> Budget -> Spending -> Remaining */}
       <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs flex flex-col gap-6">
-        
+
         {/* Card Header Label */}
         <div className="flex justify-between items-center pb-2 border-b border-slate-100">
           <span className="font-display font-extrabold text-sm text-slate-800">
@@ -439,7 +438,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
 
         {/* Top Row: Monthly Income & Monthly Budget */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          
+
           {/* Monthly Income Tile */}
           <div className="bg-slate-50/70 border border-slate-100 rounded-xl p-4 flex flex-col justify-between gap-2">
             <div className="flex justify-between items-center">
@@ -569,14 +568,13 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
         {/* Progress Bar & Percentage */}
         <div className="space-y-2 pt-1">
           <div className="h-3.5 w-full bg-slate-100 rounded-full overflow-hidden p-0.5">
-            <div 
-              className={`h-full rounded-full transition-all duration-500 ${
-                usedPct > 100 
-                  ? 'bg-rose-500' 
-                  : usedPct > 90 
-                    ? 'bg-amber-500' 
-                    : 'bg-violet-600'
-              }`}
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${usedPct > 100
+                ? 'bg-rose-500'
+                : usedPct > 90
+                  ? 'bg-amber-500'
+                  : 'bg-violet-600'
+                }`}
               style={{ width: `${Math.min(100, usedPct)}%` }}
             />
           </div>
@@ -631,10 +629,10 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-display font-semibold text-slate-800 text-sm">Category Budgets</h3>
-            <p className="text-[10px] text-slate-400 font-semibold uppercase">Set individual category monthly limits</p>
+            <p className="text-[10px] text-slate-400 font-semibold ">Set individual category monthly limits</p>
           </div>
 
-          {budget && (
+          {/* {budget && (
             <button
               onClick={handleCopyFromPreviousMonth}
               className="text-xs text-violet-600 hover:text-violet-700 font-bold flex items-center gap-1.5 cursor-pointer hover:underline"
@@ -642,7 +640,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
               <Copy className="w-3.5 h-3.5" />
               <span>Copy Allocations</span>
             </button>
-          )}
+          )} */}
         </div>
 
         {!budget ? (
@@ -657,26 +655,25 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
                 .filter(t => t.category_id === cat.id)
                 .reduce((sum, t) => sum + t.amount, 0);
 
-              const percent = catBudget && catBudget.amount > 0 
-                ? Math.round((catSpent / catBudget.amount) * 100) 
+              const percent = catBudget && catBudget.amount > 0
+                ? Math.round((catSpent / catBudget.amount) * 100)
                 : 0;
 
               const isEditing = editingCategoryBudgetId === cat.id;
               const IconComponent = getCategoryIcon(cat.icon);
 
               return (
-                <div 
-                  key={cat.id} 
-                  className={`p-4 rounded-2xl border transition-all ${
-                    catBudget 
-                      ? 'border-slate-100 bg-slate-50/10' 
-                      : 'border-dashed border-slate-200 hover:border-violet-300 bg-white'
-                  }`}
+                <div
+                  key={cat.id}
+                  className={`p-4 rounded-2xl border transition-all ${catBudget
+                    ? 'border-slate-100 bg-slate-50/10'
+                    : 'border-dashed border-slate-200 hover:border-violet-300 bg-white'
+                    }`}
                 >
                   <div className="flex justify-between items-center gap-3">
                     <div className="flex items-center gap-2.5">
-                      <div 
-                        className="w-8.5 h-8.5 rounded-xl flex items-center justify-center border text-xs shrink-0" 
+                      <div
+                        className="w-8.5 h-8.5 rounded-xl flex items-center justify-center border text-xs shrink-0"
                         style={{ backgroundColor: `${cat.color}10`, borderColor: `${cat.color}20` }}
                       >
                         <IconComponent className="w-4.5 h-4.5" style={{ color: cat.color }} />
@@ -761,9 +758,9 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
                   {catBudget && (
                     <div className="mt-3.5 space-y-1">
                       <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div 
+                        <div
                           className="h-full rounded-full transition-all duration-300"
-                          style={{ 
+                          style={{
                             width: `${Math.min(100, percent)}%`,
                             backgroundColor: cat.color
                           }}
@@ -788,7 +785,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
       {showIncomeHistoryModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
-            
+
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="text-base font-bold text-slate-900 font-display">Income History</h3>

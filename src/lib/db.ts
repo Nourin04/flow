@@ -11,14 +11,18 @@ let isSeedingCategories = false;
 
 // Default categories
 export const DEFAULT_CATEGORIES: Omit<Category, 'id' | 'created_at' | 'updated_at'>[] = [
-  { name: 'Food & Dining', icon: 'Pizza', color: '#EC4899', is_default: true, is_active: true, user_id: null },
-  { name: 'Transportation', icon: 'Car', color: '#3B82F6', is_default: true, is_active: true, user_id: null },
-  { name: 'Home', icon: 'Home', color: '#EF4444', is_default: true, is_active: true, user_id: null },
-  { name: 'Shopping', icon: 'ShoppingBag', color: '#F59E0B', is_default: true, is_active: true, user_id: null },
-  { name: 'Personal Care', icon: 'Sparkles', color: '#8B5CF6', is_default: true, is_active: true, user_id: null },
-  { name: 'Education / Learning', icon: 'GraduationCap', color: '#10B981', is_default: true, is_active: true, user_id: null },
-  { name: 'Gifts', icon: 'Gift', color: '#F43F5E', is_default: true, is_active: true, user_id: null },
-  { name: 'Other', icon: 'HelpCircle', color: '#6B7280', is_default: true, is_active: true, user_id: null },
+  { name: 'Food & Dining', icon: 'Pizza', color: '#EC4899', is_default: true, is_active: true, user_id: null, type: 'expense' },
+  { name: 'Transportation', icon: 'Car', color: '#3B82F6', is_default: true, is_active: true, user_id: null, type: 'expense' },
+  { name: 'Home', icon: 'Home', color: '#EF4444', is_default: true, is_active: true, user_id: null, type: 'expense' },
+  { name: 'Shopping', icon: 'ShoppingBag', color: '#F59E0B', is_default: true, is_active: true, user_id: null, type: 'expense' },
+  { name: 'Personal Care', icon: 'Sparkles', color: '#8B5CF6', is_default: true, is_active: true, user_id: null, type: 'expense' },
+  { name: 'Education / Learning', icon: 'GraduationCap', color: '#10B981', is_default: true, is_active: true, user_id: null, type: 'expense' },
+  { name: 'Gifts', icon: 'Gift', color: '#F43F5E', is_default: true, is_active: true, user_id: null, type: 'expense' },
+  { name: 'Other', icon: 'HelpCircle', color: '#6B7280', is_default: true, is_active: true, user_id: null, type: 'expense' },
+  { name: 'Freelance & Side Income', icon: 'Sparkles', color: '#10B981', is_default: true, is_active: true, user_id: null, type: 'income' },
+  { name: 'Bonus & Rewards', icon: 'Gift', color: '#06B6D4', is_default: true, is_active: true, user_id: null, type: 'income' },
+  { name: 'Investments & Returns', icon: 'GraduationCap', color: '#8B5CF6', is_default: true, is_active: true, user_id: null, type: 'income' },
+  { name: 'Other Income', icon: 'ShoppingBag', color: '#14B8A6', is_default: true, is_active: true, user_id: null, type: 'income' },
 ];
 
 const STORAGE_KEYS = {
@@ -350,6 +354,7 @@ export const db = {
             description: t.title || t.description || '',
             category_id: t.category_id,
             transaction_date: t.date || t.transaction_date || '',
+            type: t.type || 'expense',
             created_at: t.created_at,
             updated_at: t.updated_at
           }));
@@ -375,6 +380,7 @@ export const db = {
   },
 
   async addTransaction(userId: string, transaction: Omit<Transaction, 'id' | 'user_id' | 'created_at' | 'updated_at'>): Promise<Transaction> {
+    const txType = transaction.type || 'expense';
     if (isSupabaseConfigured && supabase && isValidUUID(userId)) {
       try {
         const catIdValid = isValidUUID(transaction.category_id) ? transaction.category_id : null;
@@ -383,7 +389,7 @@ export const db = {
           .insert({
             user_id: userId,
             amount: transaction.amount,
-            type: 'expense',
+            type: txType,
             title: transaction.description,
             category_id: catIdValid,
             date: transaction.transaction_date
@@ -399,6 +405,7 @@ export const db = {
             description: data.title || transaction.description,
             category_id: data.category_id || transaction.category_id,
             transaction_date: data.date || transaction.transaction_date,
+            type: data.type || txType,
             created_at: data.created_at,
             updated_at: data.updated_at
           };
@@ -415,6 +422,7 @@ export const db = {
     const nowStr = new Date().toISOString();
     const newTx: Transaction = {
       ...transaction,
+      type: txType,
       id: `t-${Date.now()}`,
       user_id: userId,
       created_at: nowStr,
@@ -433,6 +441,7 @@ export const db = {
         if (updates.description !== undefined) payload.title = updates.description;
         if (updates.category_id !== undefined) payload.category_id = isValidUUID(updates.category_id) ? updates.category_id : null;
         if (updates.transaction_date !== undefined) payload.date = updates.transaction_date;
+        if (updates.type !== undefined) payload.type = updates.type;
 
         const { data, error } = await supabase
           .from('transactions')
@@ -450,6 +459,7 @@ export const db = {
             description: data.title || updates.description || '',
             category_id: data.category_id || updates.category_id || '',
             transaction_date: data.date || updates.transaction_date || '',
+            type: data.type || updates.type || 'expense',
             created_at: data.created_at,
             updated_at: data.updated_at
           };
