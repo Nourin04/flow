@@ -548,15 +548,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
                       const IconComponent = getCategoryIcon(cat?.icon || 'HelpCircle');
                       const isIncomeTx = tx.type === 'income';
                       
-                      // Format timestamp
+                      // Format timestamp in user's local timezone
                       let displayTime = '';
                       if (tx.created_at) {
                         const dateObj = new Date(tx.created_at);
-                        const hours = dateObj.getUTCHours();
-                        const minutes = String(dateObj.getUTCMinutes()).padStart(2, '0');
-                        const ampm = hours >= 12 ? 'PM' : 'AM';
-                        const displayHours = hours % 12 || 12;
-                        displayTime = `${displayHours}:${minutes} ${ampm}`;
+                        displayTime = dateObj.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
                       }
 
                       return (

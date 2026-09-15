@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 -- Enable RLS on profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
+
 CREATE POLICY "Users can view own profile" 
     ON public.profiles FOR SELECT 
     USING (auth.uid() = id);
@@ -38,7 +42,8 @@ BEGIN
     COALESCE(new.raw_user_meta_data->>'name', 'User'), 
     new.email,
     '₹'
-  );
+  )
+  ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -63,9 +68,12 @@ CREATE TABLE IF NOT EXISTS public.categories (
 
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can access default or own categories" ON public.categories;
+
 CREATE POLICY "Users can access default or own categories" 
     ON public.categories FOR ALL 
-    USING (user_id IS NULL OR auth.uid() = user_id);
+    USING (user_id IS NULL OR auth.uid() = user_id)
+    WITH CHECK (user_id IS NULL OR auth.uid() = user_id);
 
 
 -- 3. MONTHLY INCOMES TABLE
@@ -81,9 +89,12 @@ CREATE TABLE IF NOT EXISTS public.monthly_incomes (
 
 ALTER TABLE public.monthly_incomes ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage own monthly incomes" ON public.monthly_incomes;
+
 CREATE POLICY "Users can manage own monthly incomes" 
     ON public.monthly_incomes FOR ALL 
-    USING (auth.uid() = user_id);
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
 
 
 -- 4. BUDGETS TABLE
@@ -99,9 +110,12 @@ CREATE TABLE IF NOT EXISTS public.budgets (
 
 ALTER TABLE public.budgets ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage own budgets" ON public.budgets;
+
 CREATE POLICY "Users can manage own budgets" 
     ON public.budgets FOR ALL 
-    USING (auth.uid() = user_id);
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
 
 
 -- 5. CATEGORY BUDGETS TABLE
@@ -117,9 +131,12 @@ CREATE TABLE IF NOT EXISTS public.category_budgets (
 
 ALTER TABLE public.category_budgets ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage own category budgets" ON public.category_budgets;
+
 CREATE POLICY "Users can manage own category budgets" 
     ON public.category_budgets FOR ALL 
-    USING (auth.uid() = user_id);
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
 
 
 -- 6. TRANSACTIONS TABLE
@@ -128,7 +145,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     category_id UUID REFERENCES public.categories(id) ON DELETE SET NULL,
     amount NUMERIC(12, 2) NOT NULL,
-    type VARCHAR(10) NOT NULL CHECK (type IN ('income', 'expense')),
+    type VARCHAR(10) NOT NULL DEFAULT 'expense' CHECK (type IN ('income', 'expense')),
     title TEXT NOT NULL,
     date DATE NOT NULL,
     notes TEXT,
@@ -138,9 +155,12 @@ CREATE TABLE IF NOT EXISTS public.transactions (
 
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage own transactions" ON public.transactions;
+
 CREATE POLICY "Users can manage own transactions" 
     ON public.transactions FOR ALL 
-    USING (auth.uid() = user_id);
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
 
 
 -- 7. SAVINGS GOALS TABLE
@@ -159,6 +179,9 @@ CREATE TABLE IF NOT EXISTS public.savings_goals (
 
 ALTER TABLE public.savings_goals ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage own savings goals" ON public.savings_goals;
+
 CREATE POLICY "Users can manage own savings goals" 
     ON public.savings_goals FOR ALL 
-    USING (auth.uid() = user_id);
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
