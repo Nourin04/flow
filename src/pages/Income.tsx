@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
+import { getCategoryIcon } from '../lib/categoryIcons';
 import { errorMessage } from '../lib/errors';
 import type { Transaction, Category, MonthlyIncome } from '../lib/types';
 import { ExpenseModal } from '../components/ExpenseModal';
@@ -19,13 +20,6 @@ import {
   X,
   Plus,
   ChevronRight,
-  Pizza,
-  Car,
-  Home,
-  ShoppingBag,
-  GraduationCap,
-  Gift,
-  HelpCircle,
 } from 'lucide-react';
 
 interface IncomeProps {
@@ -51,18 +45,6 @@ const shiftMonth = (mKey: string, delta: number) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 };
 
-const getCategoryIcon = (iconName?: string) => {
-  switch (iconName) {
-    case 'Pizza': return Pizza;
-    case 'Car': return Car;
-    case 'Home': return Home;
-    case 'ShoppingBag': return ShoppingBag;
-    case 'GraduationCap': return GraduationCap;
-    case 'Gift': return Gift;
-    case 'Sparkles': return Sparkles;
-    default: return HelpCircle;
-  }
-};
 
 export const Income: React.FC<IncomeProps> = ({ selectedMonth, setSelectedMonth }) => {
   const { user } = useAuth();

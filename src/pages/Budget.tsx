@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
+import { getCategoryIcon } from '../lib/categoryIcons';
 import type { Budget as BudgetType, CategoryBudget, Category, Transaction, MonthlyIncome } from '../lib/types';
 import {
   Trash2,
@@ -11,14 +12,6 @@ import {
   Copy,
   Plus,
   ArrowRight,
-  Pizza,
-  Car,
-  Home,
-  ShoppingBag,
-  GraduationCap,
-  Gift,
-  Sparkles,
-  HelpCircle
 } from 'lucide-react';
 import { MonthPicker } from '../components/MonthPicker';
 import { PanelsSkeleton } from '../components/Skeleton';
@@ -273,18 +266,6 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
   const usedPct = overallLimit > 0 ? Math.round((totalSpent / overallLimit) * 100) : 0;
 
   // Category Icon Mapper
-  const getCategoryIcon = (iconName: string) => {
-    switch (iconName) {
-      case 'Pizza': return Pizza;
-      case 'Car': return Car;
-      case 'Home': return Home;
-      case 'ShoppingBag': return ShoppingBag;
-      case 'GraduationCap': return GraduationCap;
-      case 'Gift': return Gift;
-      case 'Sparkles': return Sparkles;
-      default: return HelpCircle;
-    }
-  };
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-300">

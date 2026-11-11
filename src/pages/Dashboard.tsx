@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
+import { getCategoryIcon } from '../lib/categoryIcons';
 import type { Transaction, Category, Budget, CategoryBudget } from '../lib/types';
 import { ExpenseModal } from '../components/ExpenseModal';
 import { MonthPicker } from '../components/MonthPicker';
@@ -14,13 +15,6 @@ import {
   TrendingUp, 
   Receipt,
   Sparkles,
-  Pizza,
-  Car,
-  Home,
-  ShoppingBag,
-  GraduationCap,
-  Gift,
-  HelpCircle,
   X
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
@@ -122,18 +116,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
     : 0;
 
   // Category Icon Mapper helper
-  const getCategoryIcon = (iconName: string) => {
-    switch (iconName) {
-      case 'Pizza': return Pizza;
-      case 'Car': return Car;
-      case 'Home': return Home;
-      case 'ShoppingBag': return ShoppingBag;
-      case 'GraduationCap': return GraduationCap;
-      case 'Gift': return Gift;
-      case 'Sparkles': return Sparkles;
-      default: return HelpCircle;
-    }
-  };
 
   // Render recent activity list (limit to 4)
   const recentTxs = transactions.slice(0, 4);
