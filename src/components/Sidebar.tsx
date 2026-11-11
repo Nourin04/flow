@@ -5,6 +5,7 @@ import {
   LayoutDashboard, 
   Receipt, 
   Wallet, 
+  Banknote,
   BarChart3, 
   Target, 
   Settings, 
@@ -22,6 +23,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
   const menuItems = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'expenses', label: 'Expenses', icon: Receipt },
+    { id: 'income', label: 'Income', icon: Banknote },
     { id: 'budget', label: 'Budget', icon: Wallet },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'goals', label: 'Goals', icon: Target },
@@ -109,7 +111,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
             <button
               key={item.id}
               onClick={() => setCurrentPage(item.id)}
-              className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl transition-all ${
+              className={`flex flex-col items-center gap-1 py-1.5 px-1.5 rounded-xl transition-all ${
                 isActive ? 'text-violet-600 font-semibold scale-105' : 'text-slate-400'
               }`}
             >
@@ -120,7 +122,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
         })}
         <button
           onClick={() => setCurrentPage('settings')}
-          className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl transition-all ${
+          className={`flex flex-col items-center gap-1 py-1.5 px-1.5 rounded-xl transition-all ${
             currentPage === 'settings' ? 'text-violet-600 font-semibold scale-105' : 'text-slate-400'
           }`}
         >

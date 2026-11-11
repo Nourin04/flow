@@ -5,6 +5,7 @@ import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Expenses } from './pages/Expenses';
 import { Budget } from './pages/Budget';
+import { Income } from './pages/Income';
 import { Analytics } from './pages/Analytics';
 import { Goals } from './pages/Goals';
 import { Settings } from './pages/Settings';
@@ -56,6 +57,8 @@ const AppContent: React.FC = () => {
             setSelectedMonth={setSelectedMonth} 
           />
         );
+      case 'income':
+        return <Income selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} />;
       case 'budget':
         return <Budget selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} />;
       case 'analytics':
