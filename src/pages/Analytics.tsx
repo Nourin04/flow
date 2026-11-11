@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { LoadError } from '../components/LoadError';
+import { errorMessage } from '../lib/errors';
+import { StatCardsSkeleton, PanelsSkeleton, Skeleton } from '../components/Skeleton';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import type { Transaction, Category, Budget, MonthlyIncome } from '../lib/types';
@@ -33,32 +36,45 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
   const [allIncomes, setAllIncomes] = useState<MonthlyIncome[]>([]);
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
 
-  const loadData = async () => {
+  // isLoading is derived: true until data for the selected month has arrived.
+  const [loadedMonth, setLoadedMonth] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState('');
+  const requestIdRef = useRef(0);
+  const isLoading = loadedMonth !== selectedMonth;
+
+  const loadData = useCallback(async () => {
     if (!user) return;
+    const requestId = ++requestIdRef.current;
+    try {
+      const [cats, inc, bgt, txs, histTxs, histIncomes] = await Promise.all([
+        db.getCategories(user.id),
+        db.getIncome(user.id, selectedMonth),
+        db.getBudget(user.id, selectedMonth),
+        db.getTransactions(user.id, selectedMonth),
+        db.getTransactions(user.id),
+        db.getAllIncome(user.id),
+      ]);
+      // Ignore stale responses if the month changed mid-request
+      if (requestId !== requestIdRef.current) return;
 
-    const cats = await db.getCategories(user.id);
-    setCategories(cats);
-
-    const inc = await db.getIncome(user.id, selectedMonth);
-    setIncomeAmount(inc ? inc.amount : 0);
-
-    const bgt = await db.getBudget(user.id, selectedMonth);
-    setBudget(bgt);
-
-    const txs = await db.getTransactions(user.id, selectedMonth);
-    setTransactions(txs);
-
-    // Load history
-    const histIncomes = db.getAllIncome(user.id);
-    setAllIncomes(histIncomes);
-
-    const histTxs = await db.getTransactions(user.id);
-    setAllTransactions(histTxs);
-  };
+      setCategories(cats);
+      setIncomeAmount(inc ? inc.amount : 0);
+      setBudget(bgt);
+      setTransactions(txs);
+      setAllIncomes(histIncomes);
+      setAllTransactions(histTxs);
+      setLoadError('');
+    } catch (err) {
+      console.error(err);
+      if (requestId === requestIdRef.current) setLoadError(errorMessage(err, 'Failed to load analytics.'));
+    } finally {
+      if (requestId === requestIdRef.current) setLoadedMonth(selectedMonth);
+    }
+  }, [user, selectedMonth]);
 
   useEffect(() => {
     loadData();
-  }, [user, selectedMonth]);
+  }, [loadData]);
 
   if (!user) return null;
 
@@ -76,12 +92,14 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
   const month = parseInt(monthStr);
   const totalDays = getDaysInMonth(year, month);
 
-  // Determine elapsed days (anchor to 23 if selectedMonth is Aug 2026 to match screenshot context, else count all)
-  let daysElapsed = totalDays;
-  const isCurrentMonth = selectedMonth === '2026-08';
-  if (isCurrentMonth) {
-    daysElapsed = 23; // August 23rd 2026
-  }
+  // Days elapsed in the selected month: all of a past month, today's date for the
+  // current month, none for a future month.
+  const today = new Date();
+  const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  const daysElapsed =
+    selectedMonth < currentMonthKey ? totalDays
+    : selectedMonth === currentMonthKey ? today.getDate()
+    : 0;
 
   const dailyTrendData = Array.from({ length: totalDays }, (_, idx) => {
     const dayNum = idx + 1;
@@ -136,22 +154,28 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
 
   // 4. Monthly History (Past Months Comparison)
   // Group all transactions by month
-  const monthlyHistory = allIncomes.map((inc) => {
-    const monthTxs = allTransactions.filter(t => t.transaction_date.startsWith(inc.month));
-    const spent = monthTxs.reduce((sum, t) => sum + t.amount, 0);
-    const saved = Math.max(0, inc.amount - spent);
+  // Includes every month that has base income OR any transaction.
+  const historyMonths = new Set<string>([
+    ...allIncomes.map(i => i.month),
+    ...allTransactions.map(t => t.transaction_date.slice(0, 7)),
+  ]);
+  const monthlyHistory = [...historyMonths].map((monthKey) => {
+    const monthTxs = allTransactions.filter(t => t.transaction_date.startsWith(monthKey));
+    const spent = monthTxs.filter(t => t.type !== 'income').reduce((sum, t) => sum + t.amount, 0);
+    const gained = monthTxs.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+    const income = (allIncomes.find(i => i.month === monthKey)?.amount ?? 0) + gained;
 
     // Formatting label (e.g. "2026-08" -> "Aug 26")
-    const [y, m] = inc.month.split('-');
+    const [y, m] = monthKey.split('-');
     const dateObj = new Date(parseInt(y), parseInt(m) - 1, 1);
     const label = dateObj.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
 
     return {
-      monthKey: inc.month,
+      monthKey,
       label,
-      income: inc.amount,
+      income,
       expenses: spent,
-      savings: saved
+      savings: Math.max(0, income - spent)
     };
   }).sort((a, b) => a.monthKey.localeCompare(b.monthKey));
 
@@ -196,6 +220,17 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
         <p className="text-xs text-slate-500 font-medium mt-0.5">Deeper insights into spending, trends, and financial health indicators.</p>
       </div>
 
+      {loadError && <LoadError message={loadError} onRetry={loadData} />}
+
+      {isLoading ? (
+        <>
+          <Skeleton className="h-24 w-full rounded-2xl" />
+          <StatCardsSkeleton count={4} />
+          <PanelsSkeleton count={1} className="grid grid-cols-1" />
+          <PanelsSkeleton count={2} />
+        </>
+      ) : (
+      <>
       {/* Financial Health Status Indicator (PRD Section 17 & 29) */}
       <div className={`border rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center gap-4 ${health.color}`}>
         <AlertCircle className="w-6 h-6 flex-shrink-0" />
@@ -385,6 +420,8 @@ export const Analytics: React.FC<AnalyticsProps> = ({ selectedMonth }) => {
         </div>
 
       </div>
+      </>
+      )}
 
     </div>
   );

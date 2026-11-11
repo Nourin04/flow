@@ -82,7 +82,7 @@ export const GoalModal: React.FC<GoalModalProps> = ({
       onClose();
     } catch (err) {
       console.error(err);
-      setError('Failed to save savings goal. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to save savings goal. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

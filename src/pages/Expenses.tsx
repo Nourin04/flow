@@ -1,8 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import type { Transaction, Category } from '../lib/types';
 import { ExpenseModal } from '../components/ExpenseModal';
+import { MonthPicker } from '../components/MonthPicker';
+import { ListSkeleton, Skeleton } from '../components/Skeleton';
+import { LoadError } from '../components/LoadError';
+import { errorMessage } from '../lib/errors';
 import { 
   Search, 
   Filter, 
@@ -45,6 +49,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
   const [newCatName, setNewCatName] = useState('');
   const [newCatColor, setNewCatColor] = useState('#8B5CF6');
   const [newCatIcon, setNewCatIcon] = useState('Sparkles');
+  const [newCatType, setNewCatType] = useState<'expense' | 'income' | 'both'>('expense');
   const [categoryMessage, setCategoryMessage] = useState('');
   const [categoryError, setCategoryError] = useState('');
 
@@ -54,25 +59,39 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
   const [typeFilter, setTypeFilter] = useState<'all' | 'expense' | 'income'>('all');
   const [modalInitialType, setModalInitialType] = useState<'expense' | 'income'>('expense');
 
-  const availableMonths = [
-    { value: '2026-08', label: 'August 2026' },
-    { value: '2026-09', label: 'September 2026' },
-    { value: '2026-10', label: 'October 2026' },
-  ];
-
   const availableIcons = ['Pizza', 'Car', 'Home', 'ShoppingBag', 'GraduationCap', 'Gift', 'Sparkles', 'HelpCircle'];
 
-  const loadData = async () => {
+  // isLoading is derived: true until data for the currently selected month has arrived.
+  // Refreshes after edits keep the old data on screen instead of flashing skeletons.
+  const [loadedMonth, setLoadedMonth] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState('');
+  const requestIdRef = useRef(0);
+  const isLoading = loadedMonth !== selectedMonth;
+
+  const loadData = useCallback(async () => {
     if (!user) return;
-    const cats = await db.getCategories(user.id);
-    setCategories(cats);
-    const txs = await db.getTransactions(user.id, selectedMonth);
-    setTransactions(txs);
-  };
+    const requestId = ++requestIdRef.current;
+    try {
+      const [cats, txs] = await Promise.all([
+        db.getCategories(user.id),
+        db.getTransactions(user.id, selectedMonth),
+      ]);
+      // Ignore stale responses if the month changed while this request was in flight
+      if (requestId !== requestIdRef.current) return;
+      setCategories(cats);
+      setTransactions(txs);
+      setLoadError('');
+    } catch (err) {
+      console.error(err);
+      if (requestId === requestIdRef.current) setLoadError(errorMessage(err, 'Failed to load transactions.'));
+    } finally {
+      if (requestId === requestIdRef.current) setLoadedMonth(selectedMonth);
+    }
+  }, [user, selectedMonth]);
 
   useEffect(() => {
     loadData();
-  }, [user, selectedMonth]);
+  }, [loadData]);
 
   if (!user) return null;
 
@@ -89,7 +108,8 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
       loadData();
     } catch (err) {
       console.error(err);
-      alert('Failed to delete transaction');
+      setTxToDelete(null);
+      setLoadError(errorMessage(err, 'Failed to delete transaction.'));
     }
   };
 
@@ -109,6 +129,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
         name: newCatName.trim(),
         color: newCatColor,
         icon: newCatIcon,
+        type: newCatType,
         is_active: true
       });
       setNewCatName('');
@@ -117,7 +138,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
       loadData();
     } catch (err) {
       console.error(err);
-      setCategoryError('Failed to create category.');
+      setCategoryError(errorMessage(err, 'Failed to create category.'));
     }
   };
 
@@ -127,7 +148,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
       loadData();
     } catch (err) {
       console.error(err);
-      setCategoryError('Failed to toggle category.');
+      setCategoryError(errorMessage(err, 'Failed to update category.'));
     }
   };
 
@@ -155,9 +176,13 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
   // Sort dates descending
   const sortedDates = Object.keys(groupedTxs).sort((a, b) => b.localeCompare(a));
 
+  const toLocalDateKey = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
   const formatDateHeader = (dateStr: string) => {
-    const today = '2026-08-23';
-    const yesterday = '2026-08-22';
+    const now = new Date();
+    const today = toLocalDateKey(now);
+    const yesterday = toLocalDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
     if (dateStr === today) return 'Today';
     if (dateStr === yesterday) return 'Yesterday';
 
@@ -192,10 +217,14 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
         <div>
           <h2 className="text-xl font-bold text-slate-900 font-display">Transactions</h2>
           <div className="flex items-center gap-3 text-xs font-medium mt-0.5">
+            {isLoading ? (
+              <Skeleton className="h-3.5 w-24" />
+            ) : (
             <span className="text-rose-600 font-semibold">
               Spent: {user.currency}{totalSpent.toLocaleString('en-IN')}
             </span>
-            {totalIncomeGained > 0 && (
+            )}
+            {!isLoading && totalIncomeGained > 0 && (
               <span className="text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md">
                 Gained: +{user.currency}{totalIncomeGained.toLocaleString('en-IN')}
               </span>
@@ -205,20 +234,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
 
         {/* Month selector & Action Buttons */}
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-white border border-slate-200/90 rounded-xl px-4 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-violet-500/20 appearance-none pr-8 cursor-pointer"
-            >
-              {availableMonths.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
+          <MonthPicker selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} />
 
           <button
             onClick={() => {
@@ -243,6 +259,8 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
           </button>
         </div>
       </div>
+
+      {loadError && <LoadError message={loadError} onRetry={loadData} />}
 
       {/* Filters row */}
       <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-xs flex flex-col gap-3">
@@ -347,7 +365,12 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
 
       {/* Transaction List */}
       <div className="flex flex-col gap-6">
-        {sortedDates.length > 0 ? (
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-32 mx-2" />
+            <ListSkeleton rows={5} />
+          </div>
+        ) : sortedDates.length > 0 ? (
           sortedDates.map(dateStr => (
             <div key={dateStr} className="space-y-2">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">
@@ -498,7 +521,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
             <form onSubmit={handleAddCategory} className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Add Custom Category</span>
               
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Category Name</label>
                   <input
@@ -535,6 +558,22 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
                   </div>
                 </div>
 
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Used For</label>
+                  <div className="relative">
+                    <select
+                      value={newCatType}
+                      onChange={(e) => setNewCatType(e.target.value as 'expense' | 'income' | 'both')}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none appearance-none pr-6 cursor-pointer"
+                    >
+                      <option value="expense">Expenses</option>
+                      <option value="income">Income</option>
+                      <option value="both">Both</option>
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+                </div>
+
                 <button
                   type="submit"
                   className="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-lg py-1.5 text-xs font-bold shadow-xs flex items-center justify-center gap-1 cursor-pointer select-none"
@@ -567,6 +606,11 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
                       </div>
                     </div>
 
+                    {cat.user_id === null ? (
+                      <span className="text-[10px] font-semibold text-slate-400" title="Default categories are shared and can't be switched off">
+                        Always on
+                      </span>
+                    ) : (
                     <button
                       onClick={() => handleToggleCategory(cat.id, cat.is_active)}
                       className={`text-[10px] font-bold px-2.5 py-1 rounded-md cursor-pointer select-none border transition-colors ${
@@ -577,6 +621,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
                     >
                       {cat.is_active ? 'Active' : 'Inactive'}
                     </button>
+                    )}
                   </div>
                 );
               })}

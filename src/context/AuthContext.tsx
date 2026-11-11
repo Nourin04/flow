@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { Profile, Category } from '../lib/types';
-import { db } from '../lib/db';
+import type { Profile } from '../lib/types';
+import { db, DEMO_USER_ID, STORAGE_KEYS } from '../lib/db';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface AuthContextType {
@@ -15,11 +15,52 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const SEEDED_USER_ID = 'noureen-user-id';
+// ---- Local demo-mode accounts (only used when Supabase is NOT configured) ----
+type LocalAccount = Profile & { password_hash?: string; salt?: string; password?: string /* legacy plaintext */ };
+
+const hashPassword = async (password: string, salt: string) => {
+  const bytes = new TextEncoder().encode(`${salt}:${password}`);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+};
+const newSalt = () => Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+
+const readAccounts = (): LocalAccount[] => {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.ALL_PROFILES) || '[]');
+  } catch {
+    return [];
+  }
+};
+const writeAccounts = (accounts: LocalAccount[]) => localStorage.setItem(STORAGE_KEYS.ALL_PROFILES, JSON.stringify(accounts));
+const toProfile = ({ id, name, email, currency, created_at, updated_at }: LocalAccount): Profile =>
+  ({ id, name, email, currency: currency || '₹', created_at, updated_at });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  const syncSupabaseUser = async (userId: string, email: string, defaultName: string) => {
+    try {
+      let profile = await db.getProfile(userId);
+      if (!profile) {
+        profile = {
+          id: userId,
+          name: defaultName,
+          email,
+          currency: '₹',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        await db.updateProfile(profile);
+      }
+      setUser(profile);
+    } catch (err) {
+      console.error('Error syncing Supabase user profile:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (isSupabaseConfigured && supabase) {
@@ -47,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     } else {
       // Local fallback auth initialization
-      const activeUserId = localStorage.getItem('flow_active_user_id');
+      const activeUserId = localStorage.getItem(STORAGE_KEYS.ACTIVE_USER);
       const initAuth = async () => {
         try {
           if (activeUserId) {
@@ -55,7 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (profile) {
               setUser(profile);
             } else {
-              localStorage.removeItem('flow_active_user_id');
+              localStorage.removeItem(STORAGE_KEYS.ACTIVE_USER);
             }
           }
         } catch (err) {
@@ -68,30 +109,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const syncSupabaseUser = async (userId: string, email: string, defaultName: string) => {
-    try {
-      let profile = await db.getProfile(userId);
-      if (!profile) {
-        profile = {
-          id: userId,
-          name: defaultName,
-          email,
-          currency: '₹',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        await db.updateProfile(profile);
-      }
-      setUser(profile);
-    } catch (err) {
-      console.error('Error syncing Supabase user profile:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // NOTE: login/signup must not toggle the global isLoading flag — App swaps the whole
+  // screen for a spinner while it's true, which unmounted the Login page and wiped
+  // its error message and form fields.
   const login = async (email: string, password: string): Promise<{ success: boolean; message?: string }> => {
-    setIsLoading(true);
     try {
       if (isSupabaseConfigured && supabase) {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -100,168 +121,113 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         if (error) {
-          if (error.message.toLowerCase().includes('email not confirmed')) {
-            return { 
-              success: false, 
-              message: 'Email not confirmed yet. Please confirm your email address or disable "Confirm Email" in Supabase Dashboard.' 
-            };
+          const msg = error.message.toLowerCase();
+          if (msg.includes('email not confirmed')) {
+            return { success: false, message: 'Email not confirmed yet. Please check your inbox for the confirmation link.' };
           }
-          if (error.message.toLowerCase().includes('invalid login credentials') || error.message.toLowerCase().includes('invalid credentials')) {
-            return {
-              success: false,
-              message: 'Invalid email or password. Please check your credentials.'
-            };
+          if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
+            return { success: false, message: 'Invalid email or password. Please check your credentials.' };
           }
           return { success: false, message: error.message };
         }
 
         if (data.user) {
-          await syncSupabaseUser(
-            data.user.id,
-            data.user.email || email,
-            data.user.user_metadata?.name || 'User'
-          );
+          await syncSupabaseUser(data.user.id, data.user.email || email, data.user.user_metadata?.name || 'User');
           return { success: true };
         }
         return { success: false, message: 'Login failed. Please try again.' };
       }
 
-      // Fallback: Local demo auth
+      // ---- Local demo mode ----
+      // Built-in demo account (local mode only; never active when Supabase is configured)
       if (email.toLowerCase() === 'noureen@example.com' && password === 'password') {
-        const profile = await db.getProfile(SEEDED_USER_ID);
+        const profile = await db.getProfile(DEMO_USER_ID);
         if (profile) {
           setUser(profile);
-          localStorage.setItem('flow_active_user_id', SEEDED_USER_ID);
+          localStorage.setItem(STORAGE_KEYS.ACTIVE_USER, DEMO_USER_ID);
           return { success: true };
         }
       }
 
-      const profilesData = localStorage.getItem('flow_all_profiles');
-      const profiles: (Profile & { password?: string })[] = profilesData ? JSON.parse(profilesData) : [];
-      const found = profiles.find(p => p.email.toLowerCase() === email.toLowerCase() && p.password === password);
-
-      if (found) {
-        const profileObj: Profile = {
-          id: found.id,
-          name: found.name,
-          email: found.email,
-          currency: found.currency || '₹',
-          created_at: found.created_at,
-          updated_at: found.updated_at
-        };
-        await db.updateProfile(profileObj);
-        setUser(profileObj);
-        localStorage.setItem('flow_active_user_id', found.id);
-        return { success: true };
+      const accounts = readAccounts();
+      const idx = accounts.findIndex(p => p.email.toLowerCase() === email.toLowerCase());
+      const account = accounts[idx];
+      let valid = false;
+      if (account?.password_hash && account.salt) {
+        valid = (await hashPassword(password, account.salt)) === account.password_hash;
+      } else if (account?.password !== undefined) {
+        // Legacy plaintext account: verify, then upgrade to a hash
+        valid = account.password === password;
+        if (valid) {
+          const salt = newSalt();
+          const { password: _legacy, ...rest } = account;
+          accounts[idx] = { ...rest, salt, password_hash: await hashPassword(password, salt) };
+          writeAccounts(accounts);
+        }
       }
 
+      if (valid) {
+        setUser(toProfile(accounts[idx]));
+        localStorage.setItem(STORAGE_KEYS.ACTIVE_USER, accounts[idx].id);
+        return { success: true };
+      }
       return { success: false, message: 'Invalid email or password.' };
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      return { success: false, message: err.message || 'An error occurred during login.' };
-    } finally {
-      setIsLoading(false);
+      return { success: false, message: err instanceof Error ? err.message : 'An error occurred during login.' };
     }
   };
 
   const signup = async (name: string, email: string, password: string): Promise<{ success: boolean; message?: string }> => {
-    setIsLoading(true);
     try {
       if (isSupabaseConfigured && supabase) {
         const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: {
-            data: { name: name.trim() }
-          }
+          options: { data: { name: name.trim() } }
         });
 
-        if (error) {
-          return { success: false, message: error.message };
-        }
+        if (error) return { success: false, message: error.message };
 
         if (data.user) {
+          // Without a session (email confirmation required) RLS would reject profile reads/writes;
+          // the DB trigger creates the profile, so just ask the user to confirm.
+          if (!data.session) {
+            return { success: true, message: 'Account created! Please check your email to confirm your account, then log in.' };
+          }
           await syncSupabaseUser(data.user.id, email.trim(), name.trim());
-          return { 
-            success: true, 
-            message: data.session ? undefined : 'Account created! Please check your email for confirmation if required.'
-          };
+          return { success: true };
         }
         return { success: false, message: 'Signup failed. Please try again.' };
       }
 
-      // Fallback: Local demo signup
-      const userId = `user-${Date.now()}`;
-      const newProfile: Profile & { password?: string } = {
-        id: userId,
-        name,
-        email,
-        currency: '₹',
-        password,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      const profilesData = localStorage.getItem('flow_all_profiles');
-      const profiles: any[] = profilesData ? JSON.parse(profilesData) : [];
-      if (profiles.some(p => p.email.toLowerCase() === email.toLowerCase()) || email.toLowerCase() === 'noureen@example.com') {
+      // ---- Local demo mode ----
+      const accounts = readAccounts();
+      if (accounts.some(p => p.email.toLowerCase() === email.toLowerCase()) || email.toLowerCase() === 'noureen@example.com') {
         return { success: false, message: 'An account with this email already exists.' };
       }
 
-      profiles.push(newProfile);
-      localStorage.setItem('flow_all_profiles', JSON.stringify(profiles));
-
-      await db.updateProfile({
-        id: userId,
+      const ts = new Date().toISOString();
+      const salt = newSalt();
+      const account: LocalAccount = {
+        id: `user-${Date.now()}`,
         name,
         email,
         currency: '₹',
-        created_at: newProfile.created_at,
-        updated_at: newProfile.updated_at
-      });
+        salt,
+        password_hash: await hashPassword(password, salt),
+        created_at: ts,
+        updated_at: ts
+      };
+      writeAccounts([...accounts, account]);
+      // Default categories are shared (user_id null) and already seeded, so nothing else to create.
 
-      // Seed categories
-      db.getAllIncome(SEEDED_USER_ID);
-      const currentCatsData = localStorage.getItem('flow_categories');
-      const currentCats: Category[] = currentCatsData ? JSON.parse(currentCatsData) : [];
-
-      const defaultCats = [
-        { name: 'Food & Dining', icon: 'Pizza', color: '#EC4899', is_default: true, is_active: true, user_id: userId },
-        { name: 'Transportation', icon: 'Car', color: '#3B82F6', is_default: true, is_active: true, user_id: userId },
-        { name: 'Home', icon: 'Home', color: '#EF4444', is_default: true, is_active: true, user_id: userId },
-        { name: 'Shopping', icon: 'ShoppingBag', color: '#F59E0B', is_default: true, is_active: true, user_id: userId },
-        { name: 'Personal Care', icon: 'Sparkles', color: '#8B5CF6', is_default: true, is_active: true, user_id: userId },
-        { name: 'Education / Learning', icon: 'GraduationCap', color: '#10B981', is_default: true, is_active: true, user_id: userId },
-        { name: 'Gifts', icon: 'Gift', color: '#F43F5E', is_default: true, is_active: true, user_id: userId },
-        { name: 'Other', icon: 'HelpCircle', color: '#6B7280', is_default: true, is_active: true, user_id: userId },
-      ];
-
-      defaultCats.forEach((cat, idx) => {
-        currentCats.push({
-          ...cat,
-          id: `cat-${userId}-${idx + 1}`,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-      });
-      localStorage.setItem('flow_categories', JSON.stringify(currentCats));
-      await db.setIncome(userId, '2026-08', 0);
-
-      setUser({
-        id: userId,
-        name,
-        email,
-        currency: '₹',
-        created_at: newProfile.created_at,
-        updated_at: newProfile.updated_at
-      });
-      localStorage.setItem('flow_active_user_id', userId);
+      setUser(toProfile(account));
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_USER, account.id);
       return { success: true };
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      return { success: false, message: err.message || 'An error occurred during signup.' };
-    } finally {
-      setIsLoading(false);
+      return { success: false, message: err instanceof Error ? err.message : 'An error occurred during signup.' };
     }
   };
 
@@ -269,7 +235,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isSupabaseConfigured && supabase) {
       await supabase.auth.signOut();
     }
-    localStorage.removeItem('flow_active_user_id');
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_USER);
     setUser(null);
   };
 

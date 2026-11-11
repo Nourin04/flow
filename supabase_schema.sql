@@ -1,6 +1,8 @@
 -- ====================================================================
 -- SUPABASE SCHEMA FOR MFLOW (Personal Finance & Expense Tracker)
 -- Run this script in your Supabase SQL Editor (Dashboard -> SQL Editor)
+-- Safe to re-run: every statement is idempotent, so it also upgrades an
+-- existing database to the latest structure.
 -- ====================================================================
 
 -- 1. PROFILES TABLE
@@ -62,18 +64,75 @@ CREATE TABLE IF NOT EXISTS public.categories (
     color TEXT NOT NULL,
     is_default BOOLEAN DEFAULT false,
     is_active BOOLEAN DEFAULT true,
+    type VARCHAR(10) NOT NULL DEFAULT 'both' CHECK (type IN ('expense', 'income', 'both')),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Upgrade older databases that were created before the type column existed
+ALTER TABLE public.categories
+    ADD COLUMN IF NOT EXISTS type VARCHAR(10) NOT NULL DEFAULT 'both'
+    CHECK (type IN ('expense', 'income', 'both'));
+
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 
+-- Default categories (user_id IS NULL) are shared by everyone, so they are READ-ONLY.
+-- Users may only create / change / delete their own categories.
 DROP POLICY IF EXISTS "Users can access default or own categories" ON public.categories;
+DROP POLICY IF EXISTS "Users can read default or own categories" ON public.categories;
+DROP POLICY IF EXISTS "Users can insert own categories" ON public.categories;
+DROP POLICY IF EXISTS "Users can update own categories" ON public.categories;
+DROP POLICY IF EXISTS "Users can delete own categories" ON public.categories;
 
-CREATE POLICY "Users can access default or own categories" 
-    ON public.categories FOR ALL 
-    USING (user_id IS NULL OR auth.uid() = user_id)
-    WITH CHECK (user_id IS NULL OR auth.uid() = user_id);
+CREATE POLICY "Users can read default or own categories"
+    ON public.categories FOR SELECT
+    USING (user_id IS NULL OR auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own categories"
+    ON public.categories FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own categories"
+    ON public.categories FOR UPDATE
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own categories"
+    ON public.categories FOR DELETE
+    USING (auth.uid() = user_id);
+
+-- Seed the shared default categories (the app can no longer insert them itself).
+INSERT INTO public.categories (user_id, name, icon, color, is_default, is_active, type)
+SELECT NULL, d.name, d.icon, d.color, true, true, d.type
+FROM (VALUES
+    ('Food & Dining',           'Pizza',         '#EC4899', 'expense'),
+    ('Transportation',          'Car',           '#3B82F6', 'expense'),
+    ('Home',                    'Home',          '#EF4444', 'expense'),
+    ('Shopping',                'ShoppingBag',   '#F59E0B', 'expense'),
+    ('Personal Care',           'Sparkles',      '#8B5CF6', 'expense'),
+    ('Education / Learning',    'GraduationCap', '#10B981', 'expense'),
+    ('Gifts',                   'Gift',          '#F43F5E', 'expense'),
+    ('Other',                   'HelpCircle',    '#6B7280', 'expense'),
+    ('Freelance & Side Income', 'Sparkles',      '#10B981', 'income'),
+    ('Bonus & Rewards',         'Gift',          '#06B6D4', 'income'),
+    ('Investments & Returns',   'GraduationCap', '#8B5CF6', 'income'),
+    ('Other Income',            'ShoppingBag',   '#14B8A6', 'income')
+) AS d(name, icon, color, type)
+WHERE NOT EXISTS (
+    SELECT 1 FROM public.categories c WHERE c.user_id IS NULL AND c.name = d.name
+);
+
+-- Backfill the type on default categories seeded before the column existed
+UPDATE public.categories SET type = 'income'
+WHERE user_id IS NULL
+  AND name IN ('Freelance & Side Income', 'Bonus & Rewards', 'Investments & Returns', 'Other Income');
+UPDATE public.categories SET type = 'expense'
+WHERE user_id IS NULL
+  AND name IN ('Food & Dining', 'Transportation', 'Home', 'Shopping', 'Personal Care', 'Education / Learning', 'Gifts', 'Other');
+
+-- Re-activate any default category a user may have switched off for everyone
+-- (possible under the old, overly broad policy).
+UPDATE public.categories SET is_active = true WHERE user_id IS NULL AND is_active = false;
 
 
 -- 3. MONTHLY INCOMES TABLE
@@ -128,6 +187,24 @@ CREATE TABLE IF NOT EXISTS public.category_budgets (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- One limit per category per budget. Older databases may contain duplicates
+-- (every edit used to insert a new row), so keep only the newest before adding the constraint.
+DELETE FROM public.category_budgets cb
+USING public.category_budgets newer
+WHERE cb.budget_id = newer.budget_id
+  AND cb.category_id = newer.category_id
+  AND (cb.updated_at, cb.id) < (newer.updated_at, newer.id);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'category_budgets_budget_category_key'
+  ) THEN
+    ALTER TABLE public.category_budgets
+      ADD CONSTRAINT category_budgets_budget_category_key UNIQUE (budget_id, category_id);
+  END IF;
+END $$;
 
 ALTER TABLE public.category_budgets ENABLE ROW LEVEL SECURITY;
 

@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { LoadError } from './LoadError';
+import { errorMessage } from '../lib/errors';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import type { Transaction, MonthlyIncome, SavingsGoal } from '../lib/types';
 import { Sparkles, Calendar, Award, Star, Compass } from 'lucide-react';
+import { Skeleton } from './Skeleton';
 
 export const JourneyTimeline: React.FC = () => {
   const { user } = useAuth();
@@ -10,25 +13,69 @@ export const JourneyTimeline: React.FC = () => {
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [allGoals, setAllGoals] = useState<SavingsGoal[]>([]);
 
-  const loadData = async () => {
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [loadError, setLoadError] = useState('');
+
+  const loadData = useCallback(async () => {
     if (!user) return;
-    const incomes = db.getAllIncome(user.id);
-    setAllIncomes(incomes);
-    const txs = await db.getTransactions(user.id);
-    setAllTransactions(txs);
-    const goals = await db.getSavingsGoals(user.id);
-    setAllGoals(goals);
-  };
+    try {
+      const [txs, goals, incomes] = await Promise.all([
+        db.getTransactions(user.id),
+        db.getSavingsGoals(user.id),
+        db.getAllIncome(user.id),
+      ]);
+      setAllIncomes(incomes);
+      setAllTransactions(txs);
+      setAllGoals(goals);
+      setLoadError('');
+    } catch (err) {
+      console.error(err);
+      setLoadError(errorMessage(err, 'Failed to load your financial journey.'));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
 
   useEffect(() => {
     loadData();
-  }, [user]);
+  }, [loadData]);
 
   if (!user) return null;
 
+  if (!isLoading && loadError) {
+    return <LoadError message={loadError} onRetry={loadData} />;
+  }
+
+  if (isLoading) {
+    return (
+      <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-3.5 w-36" />
+          <Skeleton className="h-2.5 w-56" />
+        </div>
+        <Skeleton className="h-20 w-full rounded-xl" />
+        <div className="space-y-4">
+          {Array.from({ length: 3 }, (_, i) => (
+            <div key={i} className="flex gap-3">
+              <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-3 w-1/3" />
+                <Skeleton className="h-2.5 w-2/3" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // Global calculations
-  const totalIncomeAllTime = allIncomes.reduce((sum, i) => sum + i.amount, 0);
-  const totalSpentAllTime = allTransactions.reduce((sum, t) => sum + t.amount, 0);
+  // Income = monthly base income + every "money gained" transaction; spending excludes income.
+  const totalIncomeAllTime =
+    allIncomes.reduce((sum, i) => sum + i.amount, 0) +
+    allTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+  const totalSpentAllTime = allTransactions.filter(t => t.type !== 'income').reduce((sum, t) => sum + t.amount, 0);
   const totalSavedAllTime = Math.max(0, totalIncomeAllTime - totalSpentAllTime);
   const monthsCount = allIncomes.length;
 

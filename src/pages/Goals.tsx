@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import type { SavingsGoal } from '../lib/types';
 import { GoalModal } from '../components/GoalModal';
 import { JourneyTimeline } from '../components/JourneyTimeline';
+import { Skeleton } from '../components/Skeleton';
+import { LoadError } from '../components/LoadError';
+import { errorMessage } from '../lib/errors';
 import { 
   Target, 
   Plus, 
@@ -23,15 +26,27 @@ export const Goals: React.FC = () => {
   const [goalToEdit, setGoalToEdit] = useState<SavingsGoal | null>(null);
   const [goalToDelete, setGoalToDelete] = useState<string | null>(null);
 
-  const loadData = async () => {
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [loadError, setLoadError] = useState('');
+
+  const loadData = useCallback(async () => {
     if (!user) return;
-    const data = await db.getSavingsGoals(user.id);
-    setGoals(data);
-  };
+    try {
+      const data = await db.getSavingsGoals(user.id);
+      setGoals(data);
+      setLoadError('');
+    } catch (err) {
+      console.error(err);
+      setLoadError(errorMessage(err, 'Failed to load savings goals.'));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
 
   useEffect(() => {
     loadData();
-  }, [user]);
+  }, [loadData]);
 
   if (!user) return null;
 
@@ -47,7 +62,8 @@ export const Goals: React.FC = () => {
       loadData();
     } catch (err) {
       console.error(err);
-      alert('Failed to delete savings goal');
+      setGoalToDelete(null);
+      setLoadError(errorMessage(err, 'Failed to delete savings goal.'));
     }
   };
 
@@ -73,9 +89,27 @@ export const Goals: React.FC = () => {
           </button>
         </div>
 
+        {loadError && <LoadError message={loadError} onRetry={loadData} />}
+
         {/* Goals Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {goals.length > 0 ? (
+          {isLoading ? (
+            Array.from({ length: 2 }, (_, i) => (
+              <div key={i} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs min-h-[160px] flex flex-col justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="w-9 h-9 rounded-xl shrink-0" />
+                  <div className="space-y-2 flex-1">
+                    <Skeleton className="h-3.5 w-1/3" />
+                    <Skeleton className="h-2.5 w-1/4" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-1/2" />
+                  <Skeleton className="h-2 w-full rounded-full" />
+                </div>
+              </div>
+            ))
+          ) : goals.length > 0 ? (
             goals.map(goal => {
               const percent = goal.target_amount > 0 
                 ? Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100)) 

@@ -40,7 +40,12 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
 
   useEffect(() => {
     if (user) {
-      db.getCategories(user.id).then(setCategories);
+      db.getCategories(user.id)
+        .then(setCategories)
+        .catch(err => {
+          console.error(err);
+          setError(err instanceof Error ? err.message : 'Failed to load categories.');
+        });
     }
   }, [user, isOpen]);
 
@@ -64,7 +69,9 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   if (!isOpen || !user) return null;
 
   // Filter categories based on transaction type if category has a type specified
+  // Hide inactive categories — but keep the one already on a transaction being edited.
   const filteredCategories = categories.filter(cat => {
+    if (!cat.is_active && cat.id !== categoryId) return false;
     if (!cat.type || cat.type === 'both') return true;
     return cat.type === txType;
   });
@@ -114,7 +121,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       onClose();
     } catch (err) {
       console.error(err);
-      setError(`Failed to save ${txType === 'income' ? 'income' : 'expense'}. Please try again.`);
+      setError(err instanceof Error ? err.message : `Failed to save ${txType === 'income' ? 'income' : 'expense'}. Please try again.`);
     } finally {
       setIsSubmitting(false);
     }

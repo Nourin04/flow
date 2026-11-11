@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import type { Budget as BudgetType, CategoryBudget, Category, Transaction, MonthlyIncome } from '../lib/types';
@@ -8,10 +8,6 @@ import {
   X,
   Edit2,
   Wallet,
-  Calendar,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Copy,
   Plus,
   ArrowRight,
@@ -24,6 +20,10 @@ import {
   Sparkles,
   HelpCircle
 } from 'lucide-react';
+import { MonthPicker } from '../components/MonthPicker';
+import { PanelsSkeleton } from '../components/Skeleton';
+import { LoadError } from '../components/LoadError';
+import { errorMessage } from '../lib/errors';
 
 interface BudgetProps {
   selectedMonth: string;
@@ -64,58 +64,50 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Calendar Month Popover State
-  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
-  const [pickerYear, setPickerYear] = useState<number>(() => {
-    const [y] = selectedMonth.split('-');
-    return parseInt(y) || new Date().getFullYear();
-  });
+  // isLoading is derived: true until data for the selected month has arrived.
+  const [loadedMonth, setLoadedMonth] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState('');
+  const requestIdRef = useRef(0);
+  const isLoading = loadedMonth !== selectedMonth;
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!user) return;
+    const requestId = ++requestIdRef.current;
+    try {
+      const [cats, inc, bgt, txs, allIncomes] = await Promise.all([
+        db.getCategories(user.id),
+        db.getIncome(user.id, selectedMonth),
+        db.getBudget(user.id, selectedMonth),
+        db.getTransactions(user.id, selectedMonth),
+        db.getAllIncome(user.id), // newest month first
+      ]);
+      const cb = bgt ? await db.getCategoryBudgets(user.id, bgt.id) : [];
 
-    // Load categories
-    const cats = await db.getCategories(user.id);
-    setCategories(cats);
+      // Ignore stale responses if the month changed mid-request
+      if (requestId !== requestIdRef.current) return;
 
-    // Load monthly income for selected month
-    const inc = await db.getIncome(user.id, selectedMonth);
-    setIncome(inc);
-    setIncomeInput(inc ? inc.amount.toString() : '');
-
-    // Load all historical income entries
-    const allIncomes = db.getAllIncome(user.id);
-    // Sort descending by month
-    allIncomes.sort((a, b) => b.month.localeCompare(a.month));
-    setIncomeList(allIncomes);
-
-    // Load overall budget for selected month
-    const bgt = await db.getBudget(user.id, selectedMonth);
-    setBudget(bgt);
-    setOverallBudgetInput(bgt ? bgt.total_amount.toString() : '');
-
-    if (bgt) {
-      const cb = await db.getCategoryBudgets(user.id, bgt.id);
+      setCategories(cats);
+      setIncome(inc);
+      setIncomeInput(inc ? inc.amount.toString() : '');
+      setIncomeList(allIncomes);
+      setBudget(bgt);
+      setOverallBudgetInput(bgt ? bgt.total_amount.toString() : '');
       setCategoryBudgets(cb);
-    } else {
-      setCategoryBudgets([]);
+      setTransactions(txs);
+      setLoadError('');
+    } catch (err) {
+      console.error(err);
+      if (requestId === requestIdRef.current) setLoadError(errorMessage(err, 'Failed to load your budget.'));
+    } finally {
+      if (requestId === requestIdRef.current) setLoadedMonth(selectedMonth);
     }
-
-    // Load transactions for selected month
-    const txs = await db.getTransactions(user.id, selectedMonth);
-    setTransactions(txs);
-  };
+  }, [user, selectedMonth]);
 
   useEffect(() => {
     loadData();
-  }, [user, selectedMonth]);
+  }, [loadData]);
 
   if (!user) return null;
-
-  const currentCalendarMonth = (() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  })();
 
   const formatMonthLabel = (mKey: string) => {
     try {
@@ -143,7 +135,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
       console.error(err);
-      setError('Failed to update monthly income.');
+      setError(errorMessage(err, 'Failed to update monthly income.'));
     }
   };
 
@@ -162,7 +154,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
       console.error(err);
-      setError('Failed to save monthly budget.');
+      setError(errorMessage(err, 'Failed to save monthly budget.'));
     }
   };
 
@@ -180,7 +172,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
       loadData();
     } catch (err) {
       console.error(err);
-      setError('Failed to update income entry.');
+      setError(errorMessage(err, 'Failed to update income entry.'));
     }
   };
 
@@ -204,7 +196,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
       loadData();
     } catch (err) {
       console.error(err);
-      setError('Failed to add new month income.');
+      setError(errorMessage(err, 'Failed to add new month income.'));
     }
   };
 
@@ -229,7 +221,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
       loadData();
     } catch (err) {
       console.error(err);
-      setError('Failed to save category budget.');
+      setError(errorMessage(err, 'Failed to save category budget.'));
     }
   };
 
@@ -240,7 +232,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
       loadData();
     } catch (err) {
       console.error(err);
-      setError('Failed to delete category budget.');
+      setError(errorMessage(err, 'Failed to delete category budget.'));
     }
   };
 
@@ -270,7 +262,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
       loadData();
     } catch (err) {
       console.error(err);
-      setError('Failed to copy budget from previous month.');
+      setError(errorMessage(err, 'Failed to copy budget from previous month.'));
     }
   };
 
@@ -306,101 +298,7 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
           </p>
         </div>
 
-        {/* Interactive Calendar Month Picker Button */}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => {
-              const [y] = selectedMonth.split('-');
-              if (y) setPickerYear(parseInt(y));
-              setShowCalendarPicker(prev => !prev);
-            }}
-            className="flex items-center gap-2.5 bg-white border border-slate-200/90 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-800 shadow-xs hover:border-violet-300 hover:bg-slate-50/80 active:scale-98 transition-all cursor-pointer select-none"
-          >
-            <div className="w-6 h-6 rounded-lg bg-violet-100/70 text-violet-600 flex items-center justify-center shrink-0">
-              <Calendar className="w-3.5 h-3.5" />
-            </div>
-            <span className="font-display font-bold text-slate-900">{formatMonthLabel(selectedMonth)}</span>
-            <ChevronDown className={`w-3.5 h-3.5 text-slate-400 ml-0.5 transition-transform duration-200 ${showCalendarPicker ? 'rotate-180 text-violet-600' : ''}`} />
-          </button>
-
-          {/* Popover */}
-          {showCalendarPicker && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setShowCalendarPicker(false)}
-              />
-
-              <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150 select-none">
-                <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setPickerYear(prev => prev - 1)}
-                    className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <span className="font-display font-extrabold text-xs text-slate-800 tracking-tight">
-                    {pickerYear} Calendar
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setPickerYear(prev => prev + 1)}
-                    className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  {Array.from({ length: 12 }, (_, i) => {
-                    const mStr = String(i + 1).padStart(2, '0');
-                    const mKey = `${pickerYear}-${mStr}`;
-                    const isSelected = selectedMonth === mKey;
-                    const isCurrent = mKey === currentCalendarMonth;
-                    const monthName = new Date(pickerYear, i, 1).toLocaleDateString('en-US', { month: 'short' });
-
-                    return (
-                      <button
-                        key={mKey}
-                        type="button"
-                        onClick={() => {
-                          setSelectedMonth(mKey);
-                          setShowCalendarPicker(false);
-                        }}
-                        className={`py-2 px-1 rounded-xl text-xs font-semibold flex flex-col items-center justify-center transition-all cursor-pointer ${isSelected
-                          ? 'bg-violet-600 text-white font-bold shadow-md shadow-violet-200 scale-105'
-                          : isCurrent
-                            ? 'bg-violet-50 text-violet-700 border border-violet-200 font-bold'
-                            : 'text-slate-700 hover:bg-slate-100/80 hover:text-slate-900'
-                          }`}
-                      >
-                        <span>{monthName}</span>
-                        {isCurrent && <span className={`text-[8px] mt-0.5 ${isSelected ? 'opacity-90 text-violet-100' : 'text-violet-500 font-bold'}`}>• Today</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400 font-medium">Or pick date:</span>
-                  <input
-                    type="month"
-                    value={selectedMonth}
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        setSelectedMonth(e.target.value);
-                        setShowCalendarPicker(false);
-                      }
-                    }}
-                    className="px-2 py-1 bg-slate-50 border border-slate-200/80 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/20 cursor-pointer"
-                  />
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+        <MonthPicker selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} />
       </div>
 
       {error && (
@@ -419,6 +317,15 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
         </div>
       )}
 
+      {loadError && <LoadError message={loadError} onRetry={loadData} />}
+
+      {isLoading ? (
+        <>
+          <PanelsSkeleton count={1} className="grid grid-cols-1" />
+          <PanelsSkeleton count={2} className="grid grid-cols-1 md:grid-cols-2 gap-4" />
+        </>
+      ) : (
+      <>
       {/* Main Budget Structure Card: Income -> Budget -> Spending -> Remaining */}
       <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs flex flex-col gap-6">
 
@@ -649,10 +556,13 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-            {categories.map((cat) => {
+            {categories
+              // Only spending categories can have a limit; hide inactive ones unless they already have a limit
+              .filter(cat => cat.type !== 'income' && (cat.is_active || categoryBudgets.some(cb => cb.category_id === cat.id)))
+              .map((cat) => {
               const catBudget = categoryBudgets.find(cb => cb.category_id === cat.id);
               const catSpent = transactions
-                .filter(t => t.category_id === cat.id)
+                .filter(t => t.category_id === cat.id && t.type !== 'income')
                 .reduce((sum, t) => sum + t.amount, 0);
 
               const percent = catBudget && catBudget.amount > 0
@@ -780,6 +690,9 @@ export const Budget: React.FC<BudgetProps> = ({ selectedMonth, setSelectedMonth 
           </div>
         )}
       </div>
+
+      </>
+      )}
 
       {/* Income History Modal / Drawer */}
       {showIncomeHistoryModal && (

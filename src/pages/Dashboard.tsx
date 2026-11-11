@@ -1,8 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import type { Transaction, Category, Budget, CategoryBudget } from '../lib/types';
 import { ExpenseModal } from '../components/ExpenseModal';
+import { MonthPicker } from '../components/MonthPicker';
+import { StatCardsSkeleton, PanelsSkeleton } from '../components/Skeleton';
+import { LoadError } from '../components/LoadError';
+import { errorMessage } from '../lib/errors';
 import { 
   ArrowUpRight, 
   ArrowDownRight, 
@@ -10,10 +14,6 @@ import {
   TrendingUp, 
   Receipt,
   Sparkles,
-  Calendar,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Pizza,
   Car,
   Home,
@@ -45,43 +45,43 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
   const [showGoalToast, setShowGoalToast] = useState(true);
   const [hoveredCategory, setHoveredCategory] = useState<{ name: string; value: number; color: string } | null>(null);
   
-  // Calendar Month Popover State
-  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
-  const [pickerYear, setPickerYear] = useState<number>(() => {
-    const [y] = selectedMonth.split('-');
-    return parseInt(y) || new Date().getFullYear();
-  });
+  // isLoading is derived: true until data for the selected month has arrived.
+  const [loadedMonth, setLoadedMonth] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState('');
+  const requestIdRef = useRef(0);
+  const isLoading = loadedMonth !== selectedMonth;
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!user) return;
+    const requestId = ++requestIdRef.current;
+    try {
+      const [cats, inc, bgt, txs] = await Promise.all([
+        db.getCategories(user.id),
+        db.getIncome(user.id, selectedMonth),
+        db.getBudget(user.id, selectedMonth),
+        db.getTransactions(user.id, selectedMonth),
+      ]);
+      const cb = bgt ? await db.getCategoryBudgets(user.id, bgt.id) : [];
 
-    // Fetch categories
-    const cats = await db.getCategories(user.id);
-    setCategories(cats);
-
-    // Fetch income for selected month
-    const inc = await db.getIncome(user.id, selectedMonth);
-    setIncomeAmount(inc ? inc.amount : 0);
-
-    // Fetch budget for selected month
-    const bgt = await db.getBudget(user.id, selectedMonth);
-    setBudget(bgt);
-
-    if (bgt) {
-      const cb = await db.getCategoryBudgets(user.id, bgt.id);
+      // Ignore stale responses if the month changed mid-request
+      if (requestId !== requestIdRef.current) return;
+      setCategories(cats);
+      setIncomeAmount(inc ? inc.amount : 0);
+      setBudget(bgt);
       setCategoryBudgets(cb);
-    } else {
-      setCategoryBudgets([]);
+      setTransactions(txs);
+      setLoadError('');
+    } catch (err) {
+      console.error(err);
+      if (requestId === requestIdRef.current) setLoadError(errorMessage(err, 'Failed to load your overview.'));
+    } finally {
+      if (requestId === requestIdRef.current) setLoadedMonth(selectedMonth);
     }
-
-    // Fetch transactions for selected month
-    const txs = await db.getTransactions(user.id, selectedMonth);
-    setTransactions(txs);
-  };
+  }, [user, selectedMonth]);
 
   useEffect(() => {
     loadData();
-  }, [user, selectedMonth]);
+  }, [loadData]);
 
   if (!user) return null;
 
@@ -139,8 +139,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
   const recentTxs = transactions.slice(0, 4);
 
   // Group recent transactions by relative day for UI display
-  const todayStr = '2026-08-23'; // Locked current time to August 2026 to match screenshot
-  const yesterdayStr = '2026-08-22';
+  const toLocalDateKey = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const now = new Date();
+  const todayStr = toLocalDateKey(now);
+  const yesterdayStr = toLocalDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
 
   const groupedRecentTxs: { title: string; items: Transaction[] }[] = [];
   const todayItems = recentTxs.filter(t => t.transaction_date === todayStr);
@@ -151,21 +154,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
   if (yesterdayItems.length > 0) groupedRecentTxs.push({ title: 'Yesterday', items: yesterdayItems });
   if (olderItems.length > 0) groupedRecentTxs.push({ title: 'Earlier', items: olderItems });
 
-  const formatMonthLabel = (mKey: string) => {
-    try {
-      const [year, monthStr] = mKey.split('-');
-      const date = new Date(parseInt(year, 10), parseInt(monthStr, 10) - 1, 1);
-      return date.toLocaleString('default', { month: 'long', year: 'numeric' });
-    } catch {
-      return mKey;
-    }
-  };
-
-  const currentCalendarMonth = (() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  })();
-
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-300">
       
@@ -173,113 +161,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-900 font-display flex items-center gap-1.5">
-            Good evening, {user.name} 👋
+            {(() => {
+              const hour = new Date().getHours();
+              return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+            })()}, {user.name} 👋
           </h2>
           <p className="text-xs text-slate-500 font-medium mt-0.5">Here's how your money is looking this month.</p>
         </div>
 
         {/* Interactive Calendar Month Picker & CTA */}
         <div className="flex items-center gap-3">
-          <div className="relative">
-            {/* Custom Theme Calendar Month Selector Button */}
-            <button
-              type="button"
-              onClick={() => {
-                const [y] = selectedMonth.split('-');
-                if (y) setPickerYear(parseInt(y));
-                setShowCalendarPicker(prev => !prev);
-              }}
-              className="flex items-center gap-2.5 bg-white border border-slate-200/90 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-800 shadow-xs hover:border-violet-300 hover:bg-slate-50/80 active:scale-98 transition-all cursor-pointer select-none"
-            >
-              <div className="w-6 h-6 rounded-lg bg-violet-100/70 text-violet-600 flex items-center justify-center shrink-0">
-                <Calendar className="w-3.5 h-3.5" />
-              </div>
-              <span className="font-display font-bold text-slate-900">{formatMonthLabel(selectedMonth)}</span>
-              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 ml-0.5 transition-transform duration-200 ${showCalendarPicker ? 'rotate-180 text-violet-600' : ''}`} />
-            </button>
-
-            {/* Interactive Calendar Month Popover */}
-            {showCalendarPicker && (
-              <>
-                {/* Backdrop to close popover */}
-                <div 
-                  className="fixed inset-0 z-40" 
-                  onClick={() => setShowCalendarPicker(false)} 
-                />
-                
-                <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150 select-none">
-                  {/* Year navigation */}
-                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => setPickerYear(prev => prev - 1)}
-                      className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <span className="font-display font-extrabold text-xs text-slate-800 tracking-tight">
-                      {pickerYear} Calendar
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setPickerYear(prev => prev + 1)}
-                      className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* 12 Months Grid */}
-                  <div className="grid grid-cols-3 gap-2">
-                    {Array.from({ length: 12 }, (_, i) => {
-                      const mStr = String(i + 1).padStart(2, '0');
-                      const mKey = `${pickerYear}-${mStr}`;
-                      const isSelected = selectedMonth === mKey;
-                      const isCurrent = mKey === currentCalendarMonth;
-                      const monthName = new Date(pickerYear, i, 1).toLocaleDateString('en-US', { month: 'short' });
-
-                      return (
-                        <button
-                          key={mKey}
-                          type="button"
-                          onClick={() => {
-                            setSelectedMonth(mKey);
-                            setShowCalendarPicker(false);
-                          }}
-                          className={`py-2 px-1 rounded-xl text-xs font-semibold flex flex-col items-center justify-center transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-violet-600 text-white font-bold shadow-md shadow-violet-200 scale-105'
-                              : isCurrent
-                              ? 'bg-violet-50 text-violet-700 border border-violet-200 font-bold'
-                              : 'text-slate-700 hover:bg-slate-100/80 hover:text-slate-900'
-                          }`}
-                        >
-                          <span>{monthName}</span>
-                          {isCurrent && <span className={`text-[8px] mt-0.5 ${isSelected ? 'opacity-90 text-violet-100' : 'text-violet-500 font-bold'}`}>• Today</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Date Input Shortcut */}
-                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                    <span className="text-slate-400 font-medium">Or pick date:</span>
-                    <input
-                      type="month"
-                      value={selectedMonth}
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          setSelectedMonth(e.target.value);
-                          setShowCalendarPicker(false);
-                        }
-                      }}
-                      className="px-2 py-1 bg-slate-50 border border-slate-200/80 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/20 cursor-pointer"
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+          <MonthPicker selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} />
 
           <div className="flex items-center gap-2">
             <button
@@ -304,6 +196,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
         </div>
       </div>
 
+      {loadError && <LoadError message={loadError} onRetry={loadData} />}
+
+      {isLoading ? (
+        <>
+          <StatCardsSkeleton count={4} />
+          <PanelsSkeleton count={3} className="grid grid-cols-1 lg:grid-cols-3 gap-4" />
+          <PanelsSkeleton count={1} className="grid grid-cols-1" />
+        </>
+      ) : (
+      <>
       {/* Row 1: Four Main Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Metric: Income */}
@@ -698,6 +600,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ setCurrentPage, selectedMo
         </div>
 
       </div>
+
+      </>
+      )}
 
       {/* Expense Modal Wrapper */}
       <ExpenseModal
