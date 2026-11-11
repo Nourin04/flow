@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/db';
 import { errorMessage } from '../lib/errors';
@@ -18,6 +18,7 @@ import {
   Check,
   X,
   Plus,
+  ChevronRight,
   Pizza,
   Car,
   Home,
@@ -83,6 +84,11 @@ export const Income: React.FC<IncomeProps> = ({ selectedMonth, setSelectedMonth 
   const [showAddMonth, setShowAddMonth] = useState(false);
   const [newMonth, setNewMonth] = useState('');
   const [newAmount, setNewAmount] = useState('');
+  // Month shown in the "Extra income" panel. Clicking a row in "Salary by month" picks it;
+  // it falls back to the page's selected month whenever that changes.
+  const [pickedMonth, setPickedMonth] = useState<{ base: string; month: string } | null>(null);
+  const panelMonth = pickedMonth?.base === selectedMonth ? pickedMonth.month : selectedMonth;
+  const extraPanelRef = useRef<HTMLDivElement>(null);
 
   // Extra income entries
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -127,6 +133,7 @@ export const Income: React.FC<IncomeProps> = ({ selectedMonth, setSelectedMonth 
   const salary = salaryFor(selectedMonth);
   const hasSalary = salaries.some(s => s.month === selectedMonth);
   const monthExtraTxs = incomeTxs.filter(t => t.transaction_date.startsWith(selectedMonth));
+  const panelTxs = incomeTxs.filter(t => t.transaction_date.startsWith(panelMonth));
   const extra = extraFor(selectedMonth);
   const total = salary + extra;
 
@@ -140,6 +147,14 @@ export const Income: React.FC<IncomeProps> = ({ selectedMonth, setSelectedMonth 
     return { month: mKey, label: monthLabel(mKey, 'short'), salary: salaryFor(mKey), extra: extraFor(mKey) };
   });
   const hasChartData = chartData.some(d => d.salary > 0 || d.extra > 0);
+
+  // Rows for the "Salary by month" table: every month with a salary OR extra income, newest first
+  const historyMonths = [...new Set([
+    ...salaries.map(s => s.month),
+    ...incomeTxs.map(t => t.transaction_date.slice(0, 7)),
+  ])].sort((a, b) => b.localeCompare(a));
+  const salaryRow = (mKey: string) => salaries.find(s => s.month === mKey);
+  const extraTxsFor = (mKey: string) => incomeTxs.filter(t => t.transaction_date.startsWith(mKey));
 
   // ----- Actions -----
   const run = async (action: () => Promise<unknown>, fallback: string) => {
@@ -390,7 +405,7 @@ export const Income: React.FC<IncomeProps> = ({ selectedMonth, setSelectedMonth 
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-display font-semibold text-slate-800 text-sm">Salary by month</h3>
-                  <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Click the pencil to correct any month</p>
+                  <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Click a month to see its extra income → · pencil to edit salary</p>
                 </div>
                 <button
                   onClick={() => setShowAddMonth(v => !v)}
@@ -428,79 +443,124 @@ export const Income: React.FC<IncomeProps> = ({ selectedMonth, setSelectedMonth 
                 </form>
               )}
 
-              {salaries.length > 0 ? (
+              {historyMonths.length > 0 ? (
                 <table className="w-full text-xs text-left border-collapse">
                   <thead>
                     <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider text-[9px]">
                       <th className="py-2">Month</th>
                       <th className="py-2 text-right">Salary</th>
-                      <th className="py-2 text-right">Change</th>
-                      <th className="py-2 w-16"></th>
+                      <th className="py-2 text-right">Extra</th>
+                      <th className="py-2 text-right hidden sm:table-cell">Change</th>
+                      <th className="py-2 w-14"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {salaries.map((s, idx) => {
-                      // salaries are newest first, so the previous month in the list is idx + 1
-                      const older = salaries[idx + 1];
-                      const diff = older ? s.amount - older.amount : 0;
-                      const isEditing = editingMonth === s.month;
+                  <tbody>
+                    {historyMonths.map((mKey, idx) => {
+                      const row = salaryRow(mKey);
+                      // Salary change vs the next older month that has a salary
+                      const olderSalary = historyMonths.slice(idx + 1).map(salaryRow).find(Boolean);
+                      const diff = row && olderSalary ? row.amount - olderSalary.amount : 0;
+                      const monthTxs = extraTxsFor(mKey);
+                      const monthExtra = monthTxs.reduce((sum, t) => sum + t.amount, 0);
+                      const isEditing = editingMonth === mKey;
+                      const isActive = panelMonth === mKey;
+
                       return (
-                        <tr key={s.id} className={s.month === selectedMonth ? 'bg-violet-50/40' : ''}>
-                          <td className="py-2.5 font-semibold text-slate-600">{monthLabel(s.month)}</td>
-                          <td className="py-2.5 text-right font-display font-extrabold text-slate-800">
-                            {isEditing ? (
-                              <input
-                                type="number"
-                                inputMode="decimal"
-                                value={editAmount}
-                                onChange={(e) => setEditAmount(e.target.value)}
-                                onKeyDown={(e) => { if (e.key === 'Enter') saveHistoryRow(s.month); if (e.key === 'Escape') setEditingMonth(null); }}
-                                autoFocus
-                                className="w-24 px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-right"
-                              />
-                            ) : fmt(s.amount)}
-                          </td>
-                          <td className={`py-2.5 text-right font-semibold ${diff > 0 ? 'text-emerald-600' : diff < 0 ? 'text-rose-500' : 'text-slate-300'}`}>
-                            {older && diff !== 0 ? `${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff))}` : '—'}
-                          </td>
-                          <td className="py-2.5 text-right">
-                            {isEditing ? (
-                              <div className="flex justify-end gap-1">
-                                <button onClick={() => saveHistoryRow(s.month)} className="p-1 text-violet-600 hover:bg-violet-50 rounded-md cursor-pointer" title="Save"><Check className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => setEditingMonth(null)} className="p-1 text-slate-400 hover:bg-slate-100 rounded-md cursor-pointer" title="Cancel"><X className="w-3.5 h-3.5" /></button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => { setEditingMonth(s.month); setEditAmount(String(s.amount)); }}
-                                className="p-1 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-md cursor-pointer"
-                                title="Edit"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
+                          <tr
+                            key={mKey}
+                            onClick={() => {
+                              if (isEditing) return;
+                              setPickedMonth({ base: selectedMonth, month: mKey });
+                              // On narrow screens the panel sits below the table — bring it into view
+                              if (!window.matchMedia('(min-width: 1024px)').matches) {
+                                extraPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }
+                            }}
+                            className={`border-t border-slate-50 cursor-pointer transition-colors ${
+                              isActive ? 'bg-violet-50' : 'hover:bg-slate-50'
+                            }`}
+                            title={`Show extra income for ${monthLabel(mKey)}`}
+                          >
+                            <td className="py-2.5 font-semibold text-slate-600">
+                              <span className="flex items-center gap-1.5">
+                                <span className={`w-1 h-4 rounded-full ${isActive ? 'bg-violet-500' : 'bg-transparent'}`} />
+                                {monthLabel(mKey)}
+                              </span>
+                            </td>
+                            <td className="py-2.5 text-right font-display font-extrabold text-slate-800">
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  inputMode="decimal"
+                                  value={editAmount}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => setEditAmount(e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') saveHistoryRow(mKey); if (e.key === 'Escape') setEditingMonth(null); }}
+                                  autoFocus
+                                  className="w-24 px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-right"
+                                />
+                              ) : row ? fmt(row.amount) : <span className="text-[10px] font-semibold text-slate-400 font-sans">Not set</span>}
+                            </td>
+                            <td className={`py-2.5 text-right font-display font-bold ${monthExtra > 0 ? 'text-emerald-600' : 'text-slate-300'}`}>
+                              {monthExtra > 0 ? `+${fmt(monthExtra)}` : '—'}
+                            </td>
+                            <td className={`py-2.5 text-right font-semibold hidden sm:table-cell ${diff > 0 ? 'text-emerald-600' : diff < 0 ? 'text-rose-500' : 'text-slate-300'}`}>
+                              {diff !== 0 ? `${diff > 0 ? '+' : '−'}${fmt(Math.abs(diff))}` : '—'}
+                            </td>
+                            <td className="py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                              <span className="inline-flex items-center">
+                              {isEditing ? (
+                                <div className="flex justify-end gap-1">
+                                  <button onClick={() => saveHistoryRow(mKey)} className="p-1 text-violet-600 hover:bg-violet-50 rounded-md cursor-pointer" title="Save"><Check className="w-3.5 h-3.5" /></button>
+                                  <button onClick={() => setEditingMonth(null)} className="p-1 text-slate-400 hover:bg-slate-100 rounded-md cursor-pointer" title="Cancel"><X className="w-3.5 h-3.5" /></button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => { setEditingMonth(mKey); setEditAmount(row ? String(row.amount) : ''); }}
+                                  className="p-1 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-md cursor-pointer"
+                                  title={row ? 'Edit salary' : 'Set salary'}
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <ChevronRight className={`w-3.5 h-3.5 ml-0.5 hidden lg:block ${isActive ? 'text-violet-500' : 'text-slate-300'}`} />
+                              </span>
+                            </td>
+                          </tr>
+
                       );
                     })}
                   </tbody>
                 </table>
               ) : (
                 <div className="text-center text-xs text-slate-400 font-medium py-10">
-                  No salary recorded yet. Use “Add month” or the pencil on the Salary card.
+                  No income recorded yet. Use “Add month” or the pencil on the Salary card.
                 </div>
               )}
             </div>
 
-            {/* Extra income this month */}
-            <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex flex-col gap-4">
+            {/* Extra income for the picked month */}
+            <div ref={extraPanelRef} className="scroll-mt-4 bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex flex-col gap-4">
               <div>
-                <h3 className="font-display font-semibold text-slate-800 text-sm">Extra income in {monthLabel(selectedMonth)}</h3>
-                <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Freelance, bonuses, gifts, returns — anything on top of salary</p>
+                <h3 className="font-display font-semibold text-slate-800 text-sm">Extra income in {monthLabel(panelMonth)}</h3>
+                <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                  {panelTxs.length > 0
+                    ? <>Total <span className="text-emerald-600 font-bold">+{fmt(panelTxs.reduce((sum, t) => sum + t.amount, 0))}</span> on top of salary</>
+                    : 'Freelance, bonuses, gifts, returns — anything on top of salary'}
+                  {panelMonth !== selectedMonth && (
+                    <button
+                      onClick={() => setPickedMonth(null)}
+                      className="ml-2 text-violet-600 hover:text-violet-700 hover:underline cursor-pointer"
+                    >
+                      Back to {monthLabel(selectedMonth, 'short')}
+                    </button>
+                  )}
+                </p>
               </div>
 
-              {monthExtraTxs.length > 0 ? (
+              {panelTxs.length > 0 ? (
                 <div className="divide-y divide-slate-50">
-                  {monthExtraTxs.map(tx => {
+                  {panelTxs.map(tx => {
                     const cat = categories.find(c => c.id === tx.category_id);
                     const Icon = getCategoryIcon(cat?.icon);
                     const confirming = txToDelete === tx.id;
@@ -549,7 +609,7 @@ export const Income: React.FC<IncomeProps> = ({ selectedMonth, setSelectedMonth 
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-                  <p className="text-xs text-slate-400 font-medium">No extra income this month.</p>
+                  <p className="text-xs text-slate-400 font-medium">No extra income in {monthLabel(panelMonth)}.</p>
                   <button
                     onClick={() => { setTxToEdit(null); setIsModalOpen(true); }}
                     className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50/70 hover:bg-emerald-100/80 px-3 py-1.5 rounded-lg border border-emerald-100 cursor-pointer"
