@@ -111,6 +111,18 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
     return matchesSearch && matchesCategory && matchesType;
   });
 
+  // Totals for the active filters (shown only while a filter is applied)
+  const isFiltered = !!searchQuery.trim() || !!selectedCategory || typeFilter !== 'all';
+  const filteredSpentTxs = filteredTransactions.filter(t => t.type !== 'income');
+  const filteredGainedTxs = filteredTransactions.filter(t => t.type === 'income');
+  const filteredSpent = filteredSpentTxs.reduce((sum, t) => sum + t.amount, 0);
+  const filteredGained = filteredGainedTxs.reduce((sum, t) => sum + t.amount, 0);
+  const filterLabels = [
+    typeFilter === 'expense' ? 'Expenses' : typeFilter === 'income' ? 'Income gained' : null,
+    selectedCategory ? categories.find(c => c.id === selectedCategory)?.name ?? null : null,
+    searchQuery.trim() ? `“${searchQuery.trim()}”` : null,
+  ].filter(Boolean) as string[];
+
   // Group filtered transactions by transaction_date
   const groupedTxs: { [dateStr: string]: Transaction[] } = {};
   filteredTransactions.forEach(tx => {
@@ -295,6 +307,44 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
         </div>
+
+        {/* Totals for the current filters */}
+        {isFiltered && !isLoading && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl bg-violet-50/50 border border-violet-100/70 px-3.5 py-2.5 animate-in fade-in duration-150">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold text-slate-600">
+                <span className="font-bold text-slate-800">{filteredTransactions.length}</span> of {transactions.length} transactions
+                {filterLabels.length > 0 && (
+                  <span className="text-slate-400"> · {filterLabels.join(' · ')}</span>
+                )}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
+              {filteredSpentTxs.length > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white text-rose-600 border border-rose-100">
+                  Spent <span className="font-extrabold font-display">{user.currency}{filteredSpent.toLocaleString('en-IN')}</span>
+                  <span className="text-rose-400">· {filteredSpentTxs.length}</span>
+                </span>
+              )}
+              {filteredGainedTxs.length > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white text-emerald-700 border border-emerald-100">
+                  Gained <span className="font-extrabold font-display">+{user.currency}{filteredGained.toLocaleString('en-IN')}</span>
+                  <span className="text-emerald-500">· {filteredGainedTxs.length}</span>
+                </span>
+              )}
+              {filteredSpentTxs.length > 0 && filteredGainedTxs.length > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white text-slate-700 border border-slate-200">
+                  Net <span className={`font-extrabold font-display ${filteredGained - filteredSpent >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                    {filteredGained - filteredSpent >= 0 ? '+' : '−'}{user.currency}{Math.abs(filteredGained - filteredSpent).toLocaleString('en-IN')}
+                  </span>
+                </span>
+              )}
+              {filteredTransactions.length === 0 && (
+                <span className="text-slate-400">Nothing matches — total {user.currency}0</span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Transaction List */}
