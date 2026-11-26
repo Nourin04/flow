@@ -305,12 +305,42 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
             <ListSkeleton rows={5} />
           </div>
         ) : sortedDates.length > 0 ? (
-          sortedDates.map(dateStr => (
+          sortedDates.map(dateStr => {
+            // Day summary — based on the entries shown under this date (respects active filters)
+            const dayTxs = groupedTxs[dateStr];
+            const daySpentTxs = dayTxs.filter(t => t.type !== 'income');
+            const dayGainedTxs = dayTxs.filter(t => t.type === 'income');
+            const daySpent = daySpentTxs.reduce((sum, t) => sum + t.amount, 0);
+            const dayGained = dayGainedTxs.reduce((sum, t) => sum + t.amount, 0);
+
+            return (
             <div key={dateStr} className="space-y-2">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">
-                {formatDateHeader(dateStr)}
-              </h3>
-              
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  {formatDateHeader(dateStr)}
+                </h3>
+                <div className="flex items-center gap-1.5 text-[10px] font-semibold">
+                  {daySpentTxs.length > 0 && (
+                    <span
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-600 border border-rose-100"
+                      title={`${daySpentTxs.length} ${daySpentTxs.length === 1 ? 'expense' : 'expenses'} on this day`}
+                    >
+                      Spent <span className="font-extrabold font-display">{user.currency}{daySpent.toLocaleString('en-IN')}</span>
+                      <span className="text-rose-400">· {daySpentTxs.length}</span>
+                    </span>
+                  )}
+                  {dayGainedTxs.length > 0 && (
+                    <span
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100"
+                      title={`${dayGainedTxs.length} income ${dayGainedTxs.length === 1 ? 'entry' : 'entries'} on this day`}
+                    >
+                      Gained <span className="font-extrabold font-display">+{user.currency}{dayGained.toLocaleString('en-IN')}</span>
+                      <span className="text-emerald-500">· {dayGainedTxs.length}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+
               <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs divide-y divide-slate-50">
                 {groupedTxs[dateStr].map(tx => {
                   const cat = categories.find(c => c.id === tx.category_id);
@@ -396,7 +426,8 @@ export const Expenses: React.FC<ExpensesProps> = ({ selectedMonth, setSelectedMo
                 })}
               </div>
             </div>
-          ))
+            );
+          })
         ) : (
           <div className="bg-white border border-slate-100 rounded-2xl p-12 text-center shadow-xs flex flex-col items-center justify-center gap-3">
             <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100">
